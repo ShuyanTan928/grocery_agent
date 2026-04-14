@@ -1,0 +1,24 @@
+{
+  "_comment": "Mock response from OpenRouteService Distance Matrix API. Durations in seconds, distances in meters.",
+  "store_order": [
+    "giant_eagle_squirrel_hill",
+    "aldi_greenfield",
+    "walmart_crafton",
+    "trader_joes_shadyside",
+    "whole_foods_east_liberty"
+  ],
+  "durations": [
+    [0,    480,  1320, 360,  420 ],
+    [490,  0,    1140, 540,  600 ],
+    [1350, 1170, 0,    1260, 1320],
+    [370,  530,  1260, 0,    180 ],
+    [430,  590,  1290, 190,  0   ]
+  ],
+  "distances": [
+    [0,    3200,  14500, 2100,  2600 ],
+    [3300, 0,     12800, 4100,  4700 ],
+    [14700,13100, 0,     13900, 14300],
+    [2200, 4000,  13800, 0,     1100 ],
+    [2700, 4500,  14200, 1200,  0    ]
+  ]
+}

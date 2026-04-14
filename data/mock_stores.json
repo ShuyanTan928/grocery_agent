@@ -1,0 +1,54 @@
+{
+  "stores": [
+    {
+      "id": "giant_eagle_squirrel_hill",
+      "display_name": "giant eagle",
+      "name": "Giant Eagle",
+      "branch": "Squirrel Hill",
+      "address": "1900 Murray Ave, Pittsburgh, PA 15217",
+      "lat": 40.4282,
+      "lng": -79.9225,
+      "hours": "6:00-23:00"
+    },
+    {
+      "id": "aldi_greenfield",
+      "display_name": "aldi",
+      "name": "Aldi",
+      "branch": "Greenfield",
+      "address": "3850 Bigelow Blvd, Pittsburgh, PA 15213",
+      "lat": 40.4442,
+      "lng": -79.9558,
+      "hours": "9:00-20:00"
+    },
+    {
+      "id": "walmart_crafton",
+      "display_name": "walmart",
+      "name": "Walmart",
+      "branch": "Crafton",
+      "address": "200 Bower Hill Rd, Pittsburgh, PA 15243",
+      "lat": 40.4051,
+      "lng": -80.0611,
+      "hours": "7:00-23:00"
+    },
+    {
+      "id": "trader_joes_shadyside",
+      "display_name": "trader joe's",
+      "name": "Trader Joe's",
+      "branch": "Shadyside",
+      "address": "6343 Penn Ave, Pittsburgh, PA 15206",
+      "lat": 40.4583,
+      "lng": -79.9256,
+      "hours": "8:00-21:00"
+    },
+    {
+      "id": "whole_foods_east_liberty",
+      "display_name": "whole foods",
+      "name": "Whole Foods",
+      "branch": "East Liberty",
+      "address": "5880 Centre Ave, Pittsburgh, PA 15232",
+      "lat": 40.4564,
+      "lng": -79.9303,
+      "hours": "7:00-22:00"
+    }
+  ]
+}
