@@ -105,7 +105,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ### 2. Clone and install dependencies
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/grocery_agent.git
+git clone https://github.com/ShuyanTan928/grocery_agent.git
 cd grocery_agent
 uv venv
 uv sync
