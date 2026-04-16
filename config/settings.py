@@ -7,10 +7,31 @@
 
 import os
 
+
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
 # --- LLM ---
-# Gemma 3 via Google GenAI SDK (same as your calendar agent)
+# Switch: USE_OPENROUTER (default off) → Google GenAI. Set true/on/1/yes to use OpenRouter.
+# Back-compat: LLM_PROVIDER=openrouter also selects OpenRouter.
+_use_openrouter = _env_truthy("USE_OPENROUTER")
+_legacy_openrouter = os.getenv("LLM_PROVIDER", "google").strip().lower() == "openrouter"
+LLM_PROVIDER = "openrouter" if (_use_openrouter or _legacy_openrouter) else "google"
+
+# Google GenAI — default path when USE_OPENROUTER is off
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "YOUR_GOOGLE_GENAI_KEY")
-LLM_MODEL = "gemma-4-26b-a4b-it"
+
+# OpenRouter — when USE_OPENROUTER is on (or LLM_PROVIDER=openrouter)
+# Docs: https://openrouter.ai/docs/quickstart
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+# Optional; improves attribution on openrouter.ai rankings
+OPENROUTER_HTTP_REFERER = os.getenv("OPENROUTER_HTTP_REFERER", "").strip()
+OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "").strip()
+
+# Model id: Google uses short names (e.g. gemma-4-26b-a4b-it); OpenRouter uses provider/slug (e.g. google/gemma-4-26b-a4b-it)
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma-4-26b-a4b-it")
 
 # --- Routing ---
 # OpenRouteService (free tier: 2000 req/day, no credit card needed)

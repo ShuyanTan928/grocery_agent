@@ -1,6 +1,6 @@
 # ============================================================
 # agent/agent.py
-# ReAct grocery agent powered by Gemini (via Google GenAI SDK).
+# ReAct grocery agent: LLM via Google GenAI SDK or OpenRouter (OpenAI-compatible API).
 #
 # Conversation flow:
 #   Turn 1 - User states their shopping needs (any language)
@@ -20,14 +20,22 @@
 
 import json
 import re
-from google import genai
 
-from config.settings import GOOGLE_API_KEY, LLM_MODEL
+from config.settings import (
+    GOOGLE_API_KEY,
+    LLM_MODEL,
+    LLM_PROVIDER,
+    OPENROUTER_API_KEY,
+    OPENROUTER_APP_TITLE,
+    OPENROUTER_BASE_URL,
+    OPENROUTER_HTTP_REFERER,
+)
 from tools.price_optimizer import optimize_shopping_list, load_stores
 from tools.route_planner import plan_route
 from tools.errand_runner import generate_errand_quote
 
-client = genai.Client(api_key=GOOGLE_API_KEY)
+_google_genai_client = None
+_openrouter_client = None
 
 # --------------- Prompts ---------------
 
@@ -142,8 +150,58 @@ class ShoppingSession:
 
 # --------------- LLM helpers ---------------
 
+def _get_google_genai_client():
+    global _google_genai_client
+    if _google_genai_client is None:
+        from google import genai
+
+        _google_genai_client = genai.Client(api_key=GOOGLE_API_KEY)
+    return _google_genai_client
+
+
+def _get_openrouter_client():
+    global _openrouter_client
+    if _openrouter_client is None:
+        from openai import OpenAI
+
+        if not OPENROUTER_API_KEY:
+            raise RuntimeError(
+                "OPENROUTER_API_KEY is not set. Add it to .env when USE_OPENROUTER=true."
+            )
+        headers = {}
+        if OPENROUTER_HTTP_REFERER:
+            headers["HTTP-Referer"] = OPENROUTER_HTTP_REFERER
+        if OPENROUTER_APP_TITLE:
+            headers["X-Title"] = OPENROUTER_APP_TITLE
+        _openrouter_client = OpenAI(
+            base_url=OPENROUTER_BASE_URL,
+            api_key=OPENROUTER_API_KEY,
+            default_headers=headers or None,
+        )
+    return _openrouter_client
+
+
 def call_llm(prompt: str) -> str:
-    """Single-turn LLM call using new google-genai SDK."""
+    """Single-turn LLM call (Google GenAI or OpenRouter)."""
+    if LLM_PROVIDER == "openrouter":
+        client = _get_openrouter_client()
+        resp = client.chat.completions.create(
+            model=LLM_MODEL,
+            temperature=0.3,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        if not text:
+            raise RuntimeError("OpenRouter returned an empty response.")
+        return text
+
+    # Default: Google GenAI
+    from google import genai
+
+    client = _get_google_genai_client()
     response = client.models.generate_content(
         model=LLM_MODEL,
         contents=prompt,
