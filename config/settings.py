@@ -44,8 +44,16 @@ ORS_BASE_URL = "https://api.openrouteservice.org"
 USE_MOCK_DATA = os.getenv("USE_MOCK_DATA", "true").lower() == "true"
 MOCK_DATA_DIR = "data/"
 
-# Price cache TTL in seconds (1 hour by default)
+# Price cache TTL in seconds (1 hour by default; refreshers also support per-day cache)
 PRICE_CACHE_TTL = 3600
+
+# Directory for per-store scraped price caches (one JSON per store)
+PRICE_CACHE_DIR = os.getenv("PRICE_CACHE_DIR", "data/price_cache/")
+
+# --- Trader Joe's ---
+# Internal store code (NOT ZIP). Passed as storeCode to their GraphQL API.
+# 638 = Pittsburgh Shadyside (6343 Penn Ave).
+TRADER_JOES_STORE_CODE = os.getenv("TRADER_JOES_STORE_CODE", "638")
 
 # --- User home location (Pittsburgh default for testing) ---
 # This is the starting point for route planning

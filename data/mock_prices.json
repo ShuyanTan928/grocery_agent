@@ -2,67 +2,301 @@
   "last_updated": "2026-04-14T10:00:00",
   "items": {
     "milk": [
-      {"store": "giant eagle", "location": "1900 Murray Ave, Pittsburgh, PA 15217", "item_name": "Whole Milk 1 Gallon", "item_price": 4.29},
-      {"store": "aldi",        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213", "item_name": "Whole Milk 1 Gallon", "item_price": 3.19},
-      {"store": "walmart",     "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",  "item_name": "Great Value Whole Milk 1 Gallon", "item_price": 3.48},
-      {"store": "trader joe's","location": "6343 Penn Ave, Pittsburgh, PA 15206",       "item_name": "Organic Whole Milk 1 Gallon", "item_price": 4.49},
-      {"store": "whole foods", "location": "5880 Centre Ave, Pittsburgh, PA 15232",     "item_name": "365 Organic Whole Milk 1 Gallon", "item_price": 5.99}
+      {
+        "store": "giant eagle",
+        "location": "1900 Murray Ave, Pittsburgh, PA 15217",
+        "item_name": "Whole Milk 1 Gallon",
+        "item_price": 4.29
+      },
+      {
+        "store": "aldi",
+        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213",
+        "item_name": "Whole Milk 1 Gallon",
+        "item_price": 3.19
+      },
+      {
+        "store": "walmart",
+        "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",
+        "item_name": "Great Value Whole Milk 1 Gallon",
+        "item_price": 3.48
+      },
+      {
+        "store": "trader joe's",
+        "location": "6343 Penn Ave, Pittsburgh, PA 15206",
+        "item_name": "Ultra-Filtered Reduced Fat Milk 59 Fl Oz",
+        "item_price": 3.99,
+        "url": "https://www.traderjoes.com/home/products/pdp/070148-milk-ultra-filtered-reduced-fat-2-070148"
+      },
+      {
+        "store": "whole foods",
+        "location": "5880 Centre Ave, Pittsburgh, PA 15232",
+        "item_name": "365 Organic Whole Milk 1 Gallon",
+        "item_price": 5.99
+      }
     ],
     "eggs": [
-      {"store": "giant eagle", "location": "1900 Murray Ave, Pittsburgh, PA 15217", "item_name": "Large Eggs 12 Count", "item_price": 3.79},
-      {"store": "aldi",        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213", "item_name": "Large Eggs 12 Count", "item_price": 2.89},
-      {"store": "walmart",     "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",  "item_name": "Great Value Large Eggs 12 Count", "item_price": 3.12},
-      {"store": "trader joe's","location": "6343 Penn Ave, Pittsburgh, PA 15206",       "item_name": "Free Range Large Eggs 12 Count", "item_price": 3.99},
-      {"store": "whole foods", "location": "5880 Centre Ave, Pittsburgh, PA 15232",     "item_name": "365 Organic Large Eggs 12 Count", "item_price": 6.49}
+      {
+        "store": "giant eagle",
+        "location": "1900 Murray Ave, Pittsburgh, PA 15217",
+        "item_name": "Large Eggs 12 Count",
+        "item_price": 3.79
+      },
+      {
+        "store": "aldi",
+        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213",
+        "item_name": "Large Eggs 12 Count",
+        "item_price": 2.89
+      },
+      {
+        "store": "walmart",
+        "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",
+        "item_name": "Great Value Large Eggs 12 Count",
+        "item_price": 3.12
+      },
+      {
+        "store": "trader joe's",
+        "location": "6343 Penn Ave, Pittsburgh, PA 15206",
+        "item_name": "Organic Pasture Raised Large Brown Eggs 1 Doz",
+        "item_price": 6.99,
+        "url": "https://www.traderjoes.com/home/products/pdp/072270-eggs-large-brown-organic-pasture-raised-dozen-072270"
+      },
+      {
+        "store": "whole foods",
+        "location": "5880 Centre Ave, Pittsburgh, PA 15232",
+        "item_name": "365 Organic Large Eggs 12 Count",
+        "item_price": 6.49
+      }
     ],
     "bread": [
-      {"store": "giant eagle", "location": "1900 Murray Ave, Pittsburgh, PA 15217", "item_name": "White Bread Loaf", "item_price": 3.49},
-      {"store": "aldi",        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213", "item_name": "White Bread Loaf", "item_price": 1.89},
-      {"store": "walmart",     "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",  "item_name": "Great Value White Bread", "item_price": 2.18},
-      {"store": "trader joe's","location": "6343 Penn Ave, Pittsburgh, PA 15206",       "item_name": "Brioche Sandwich Bread", "item_price": 3.99},
-      {"store": "whole foods", "location": "5880 Centre Ave, Pittsburgh, PA 15232",     "item_name": "365 Whole Wheat Bread", "item_price": 4.99}
+      {
+        "store": "giant eagle",
+        "location": "1900 Murray Ave, Pittsburgh, PA 15217",
+        "item_name": "White Bread Loaf",
+        "item_price": 3.49
+      },
+      {
+        "store": "aldi",
+        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213",
+        "item_name": "White Bread Loaf",
+        "item_price": 1.89
+      },
+      {
+        "store": "walmart",
+        "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",
+        "item_name": "Great Value White Bread",
+        "item_price": 2.18
+      },
+      {
+        "store": "trader joe's",
+        "location": "6343 Penn Ave, Pittsburgh, PA 15206",
+        "item_name": "White Sliced Bread 22 Oz",
+        "item_price": 2.49,
+        "url": "https://www.traderjoes.com/home/products/pdp/060500-sliced-white-bread-060500"
+      },
+      {
+        "store": "whole foods",
+        "location": "5880 Centre Ave, Pittsburgh, PA 15232",
+        "item_name": "365 Whole Wheat Bread",
+        "item_price": 4.99
+      }
     ],
     "chicken": [
-      {"store": "giant eagle", "location": "1900 Murray Ave, Pittsburgh, PA 15217", "item_name": "Chicken Breast 1 lb", "item_price": 5.99},
-      {"store": "aldi",        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213", "item_name": "Chicken Breast 1 lb", "item_price": 4.29},
-      {"store": "walmart",     "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",  "item_name": "Chicken Breast 1 lb", "item_price": 4.68},
-      {"store": "trader joe's","location": "6343 Penn Ave, Pittsburgh, PA 15206",       "item_name": "Air Chilled Chicken Breast 1 lb", "item_price": 5.49},
-      {"store": "whole foods", "location": "5880 Centre Ave, Pittsburgh, PA 15232",     "item_name": "Organic Chicken Breast 1 lb", "item_price": 8.99}
+      {
+        "store": "giant eagle",
+        "location": "1900 Murray Ave, Pittsburgh, PA 15217",
+        "item_name": "Chicken Breast 1 lb",
+        "item_price": 5.99
+      },
+      {
+        "store": "aldi",
+        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213",
+        "item_name": "Chicken Breast 1 lb",
+        "item_price": 4.29
+      },
+      {
+        "store": "walmart",
+        "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",
+        "item_name": "Chicken Breast 1 lb",
+        "item_price": 4.68
+      },
+      {
+        "store": "trader joe's",
+        "location": "6343 Penn Ave, Pittsburgh, PA 15206",
+        "item_name": "Organic Free Range Boneless Skinless Chicken Breasts 1 Lb",
+        "item_price": 7.49,
+        "url": "https://www.traderjoes.com/home/products/pdp/063550-organic-chicken-breast-063550"
+      },
+      {
+        "store": "whole foods",
+        "location": "5880 Centre Ave, Pittsburgh, PA 15232",
+        "item_name": "Organic Chicken Breast 1 lb",
+        "item_price": 8.99
+      }
     ],
     "pork": [
-      {"store": "giant eagle", "location": "1900 Murray Ave, Pittsburgh, PA 15217", "item_name": "Pork Loin Chops 1 lb", "item_price": 5.49},
-      {"store": "aldi",        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213", "item_name": "Pork Loin Chops 1 lb", "item_price": 4.49},
-      {"store": "walmart",     "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",  "item_name": "Pork Loin Chops 1 lb", "item_price": 4.78},
-      {"store": "trader joe's","location": "6343 Penn Ave, Pittsburgh, PA 15206",       "item_name": "Boneless Pork Tenderloin 1 lb", "item_price": 7.49},
-      {"store": "whole foods", "location": "5880 Centre Ave, Pittsburgh, PA 15232",     "item_name": "Organic Pork Chop 1 lb", "item_price": 9.99}
+      {
+        "store": "giant eagle",
+        "location": "1900 Murray Ave, Pittsburgh, PA 15217",
+        "item_name": "Pork Loin Chops 1 lb",
+        "item_price": 5.49
+      },
+      {
+        "store": "aldi",
+        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213",
+        "item_name": "Pork Loin Chops 1 lb",
+        "item_price": 4.49
+      },
+      {
+        "store": "walmart",
+        "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",
+        "item_name": "Pork Loin Chops 1 lb",
+        "item_price": 4.78
+      },
+      {
+        "store": "trader joe's",
+        "location": "6343 Penn Ave, Pittsburgh, PA 15206",
+        "item_name": "All Natural Frenched, Bone-In, Center-Cut Pork Loin Chops 1 Lb",
+        "item_price": 7.99,
+        "url": "https://www.traderjoes.com/home/products/pdp/063395-pork-nat-crate-free-bone-in-chops-12-pk-063395"
+      },
+      {
+        "store": "whole foods",
+        "location": "5880 Centre Ave, Pittsburgh, PA 15232",
+        "item_name": "Organic Pork Chop 1 lb",
+        "item_price": 9.99
+      }
     ],
     "bananas": [
-      {"store": "giant eagle", "location": "1900 Murray Ave, Pittsburgh, PA 15217", "item_name": "Bananas 1 lb", "item_price": 0.59},
-      {"store": "aldi",        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213", "item_name": "Bananas 1 lb", "item_price": 0.45},
-      {"store": "walmart",     "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",  "item_name": "Bananas 1 lb", "item_price": 0.49},
-      {"store": "trader joe's","location": "6343 Penn Ave, Pittsburgh, PA 15206",       "item_name": "Bananas 1 lb", "item_price": 0.29},
-      {"store": "whole foods", "location": "5880 Centre Ave, Pittsburgh, PA 15232",     "item_name": "Organic Bananas 1 lb", "item_price": 0.79}
+      {
+        "store": "giant eagle",
+        "location": "1900 Murray Ave, Pittsburgh, PA 15217",
+        "item_name": "Bananas 1 lb",
+        "item_price": 0.59
+      },
+      {
+        "store": "aldi",
+        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213",
+        "item_name": "Bananas 1 lb",
+        "item_price": 0.45
+      },
+      {
+        "store": "walmart",
+        "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",
+        "item_name": "Bananas 1 lb",
+        "item_price": 0.49
+      },
+      {
+        "store": "trader joe's",
+        "location": "6343 Penn Ave, Pittsburgh, PA 15206",
+        "item_name": "Organic Bananas 1 Each",
+        "item_price": 0.29,
+        "url": "https://www.traderjoes.com/home/products/pdp/050116-banana-org-each-050116"
+      },
+      {
+        "store": "whole foods",
+        "location": "5880 Centre Ave, Pittsburgh, PA 15232",
+        "item_name": "Organic Bananas 1 lb",
+        "item_price": 0.79
+      }
     ],
     "orange juice": [
-      {"store": "giant eagle", "location": "1900 Murray Ave, Pittsburgh, PA 15217", "item_name": "Tropicana Orange Juice 52 oz", "item_price": 4.99},
-      {"store": "aldi",        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213", "item_name": "Orange Juice 52 oz", "item_price": 3.49},
-      {"store": "walmart",     "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",  "item_name": "Tropicana Orange Juice 52 oz", "item_price": 3.88},
-      {"store": "trader joe's","location": "6343 Penn Ave, Pittsburgh, PA 15206",       "item_name": "Orange Juice 52 oz", "item_price": 4.99},
-      {"store": "whole foods", "location": "5880 Centre Ave, Pittsburgh, PA 15232",     "item_name": "365 Organic Orange Juice 52 oz", "item_price": 6.99}
+      {
+        "store": "giant eagle",
+        "location": "1900 Murray Ave, Pittsburgh, PA 15217",
+        "item_name": "Tropicana Orange Juice 52 oz",
+        "item_price": 4.99
+      },
+      {
+        "store": "aldi",
+        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213",
+        "item_name": "Orange Juice 52 oz",
+        "item_price": 3.49
+      },
+      {
+        "store": "walmart",
+        "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",
+        "item_name": "Tropicana Orange Juice 52 oz",
+        "item_price": 3.88
+      },
+      {
+        "store": "trader joe's",
+        "location": "6343 Penn Ave, Pittsburgh, PA 15206",
+        "item_name": "100% Orange Juice No Pulp 52 Fl Oz",
+        "item_price": 4.79,
+        "url": "https://www.traderjoes.com/home/products/pdp/066569-orange-no-pulp-52-oz-066569"
+      },
+      {
+        "store": "whole foods",
+        "location": "5880 Centre Ave, Pittsburgh, PA 15232",
+        "item_name": "365 Organic Orange Juice 52 oz",
+        "item_price": 6.99
+      }
     ],
     "pasta": [
-      {"store": "giant eagle", "location": "1900 Murray Ave, Pittsburgh, PA 15217", "item_name": "Spaghetti 16 oz", "item_price": 1.99},
-      {"store": "aldi",        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213", "item_name": "Spaghetti 16 oz", "item_price": 1.09},
-      {"store": "walmart",     "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",  "item_name": "Great Value Spaghetti 16 oz", "item_price": 1.28},
-      {"store": "trader joe's","location": "6343 Penn Ave, Pittsburgh, PA 15206",       "item_name": "Organic Spaghetti 16 oz", "item_price": 1.99},
-      {"store": "whole foods", "location": "5880 Centre Ave, Pittsburgh, PA 15232",     "item_name": "365 Organic Spaghetti 16 oz", "item_price": 2.99}
+      {
+        "store": "giant eagle",
+        "location": "1900 Murray Ave, Pittsburgh, PA 15217",
+        "item_name": "Spaghetti 16 oz",
+        "item_price": 1.99
+      },
+      {
+        "store": "aldi",
+        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213",
+        "item_name": "Spaghetti 16 oz",
+        "item_price": 1.09
+      },
+      {
+        "store": "walmart",
+        "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",
+        "item_name": "Great Value Spaghetti 16 oz",
+        "item_price": 1.28
+      },
+      {
+        "store": "trader joe's",
+        "location": "6343 Penn Ave, Pittsburgh, PA 15206",
+        "item_name": "Organic Spaghetti Triangoletti Pasta 1 Lb",
+        "item_price": 1.99,
+        "url": "https://www.traderjoes.com/home/products/pdp/078105-pasta-spaghetti-triangoletti-organic-078105"
+      },
+      {
+        "store": "whole foods",
+        "location": "5880 Centre Ave, Pittsburgh, PA 15232",
+        "item_name": "365 Organic Spaghetti 16 oz",
+        "item_price": 2.99
+      }
     ],
     "butter": [
-      {"store": "giant eagle", "location": "1900 Murray Ave, Pittsburgh, PA 15217", "item_name": "Butter 1 lb", "item_price": 5.49},
-      {"store": "aldi",        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213", "item_name": "Butter 1 lb", "item_price": 3.99},
-      {"store": "walmart",     "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",  "item_name": "Land O Lakes Butter 1 lb", "item_price": 4.28},
-      {"store": "trader joe's","location": "6343 Penn Ave, Pittsburgh, PA 15206",       "item_name": "Cultured Butter 1 lb", "item_price": 4.99},
-      {"store": "whole foods", "location": "5880 Centre Ave, Pittsburgh, PA 15232",     "item_name": "365 Organic Butter 1 lb", "item_price": 7.49}
+      {
+        "store": "giant eagle",
+        "location": "1900 Murray Ave, Pittsburgh, PA 15217",
+        "item_name": "Butter 1 lb",
+        "item_price": 5.49
+      },
+      {
+        "store": "aldi",
+        "location": "3850 Bigelow Blvd, Pittsburgh, PA 15213",
+        "item_name": "Butter 1 lb",
+        "item_price": 3.99
+      },
+      {
+        "store": "walmart",
+        "location": "200 Bower Hill Rd, Pittsburgh, PA 15243",
+        "item_name": "Land O Lakes Butter 1 lb",
+        "item_price": 4.28
+      },
+      {
+        "store": "trader joe's",
+        "location": "6343 Penn Ave, Pittsburgh, PA 15206",
+        "item_name": "Butter Quarters, Unsalted 16 Oz",
+        "item_price": 2.99,
+        "url": "https://www.traderjoes.com/home/products/pdp/006253-butter-quarters-unsalted-006253"
+      },
+      {
+        "store": "whole foods",
+        "location": "5880 Centre Ave, Pittsburgh, PA 15232",
+        "item_name": "365 Organic Butter 1 lb",
+        "item_price": 7.49
+      }
     ]
   }
 }

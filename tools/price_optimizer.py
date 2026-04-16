@@ -17,6 +17,7 @@
 import json
 from pathlib import Path
 from config.settings import MOCK_DATA_DIR, USE_MOCK_DATA
+from tools.synonyms import expand_query
 
 
 def load_prices() -> dict:
@@ -60,21 +61,33 @@ def find_cheapest(item_query: str, price_data: dict) -> dict | None:
       {"store": "aldi", "location": "...", "item_name": "...", "item_price": 3.19}
     or None if no match found.
     """
-    query_lower = item_query.lower()
     items_db = price_data.get("items", {})
-
-    # Try to find a category whose key is contained in or contains the query
-    matched_entries = None
-    for category, entries in items_db.items():
-        if category in query_lower or query_lower in category:
-            matched_entries = entries
-            break
-
+    matched_entries = _match_category(item_query, items_db)
     if matched_entries is None:
         return None
-
-    # Return the entry with the lowest item_price
     return min(matched_entries, key=lambda e: e["item_price"])
+
+
+def _match_category(item_query: str, items_db: dict) -> list | None:
+    """
+    Find the best-matching category in items_db for a query, using synonym
+    expansion. Tries:
+      1. direct substring match on the original query
+      2. substring match against any synonym-expanded candidate (e.g.
+         "pork chop" -> "pork")
+    Returns the list of entries for the matched category, or None.
+    """
+    query_lower = (item_query or "").lower()
+
+    for category, entries in items_db.items():
+        if category in query_lower or query_lower in category:
+            return entries
+
+    for cand in expand_query(item_query):
+        for category, entries in items_db.items():
+            if category in cand or cand in category:
+                return entries
+    return None
 
 
 def optimize_shopping_list(items: list[str]) -> dict:
@@ -142,17 +155,40 @@ def optimize_shopping_list(items: list[str]) -> dict:
     }
 
 
+def find_at_store(item_query: str, store_id: str, price_data: dict, stores: dict | None = None) -> dict | None:
+    """
+    Find the entry for a given item query at a specific store_id, if available.
+
+    Same substring matching on category as find_cheapest, but restricted to
+    entries whose store display_name maps to the target store_id.
+    Returns the price entry dict or None.
+    """
+    if stores is None:
+        stores = load_stores()
+    name_index = build_display_name_index(stores)
+
+    items_db = price_data.get("items", {})
+    matched_entries = _match_category(item_query, items_db)
+    if matched_entries is None:
+        return None
+
+    candidates = [
+        e for e in matched_entries
+        if name_index.get(e.get("store", "").lower()) == store_id
+    ]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda e: e["item_price"])
+
+
 def get_all_prices_for_item(item_query: str) -> list[dict]:
     """
     Return all store prices for a given item, sorted cheapest first.
     Useful for displaying price comparison to the user.
     """
     price_data = load_prices()
-    query_lower = item_query.lower()
     items_db = price_data.get("items", {})
-
-    for category, entries in items_db.items():
-        if category in query_lower or query_lower in category:
-            return sorted(entries, key=lambda e: e["item_price"])
-
-    return []
+    matched = _match_category(item_query, items_db)
+    if matched is None:
+        return []
+    return sorted(matched, key=lambda e: e["item_price"])
