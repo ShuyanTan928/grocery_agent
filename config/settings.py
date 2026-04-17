@@ -33,6 +33,31 @@ OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "").strip()
 # Model id: Google uses short names (e.g. gemma-4-26b-a4b-it); OpenRouter uses provider/slug (e.g. google/gemma-4-26b-a4b-it)
 LLM_MODEL = os.getenv("LLM_MODEL", "gemma-4-26b-a4b-it")
 
+# --- Intent router ---
+# When True, turns on the hybrid intent router: regex/state-machine runs
+# first (fast, deterministic), and any leftover "didn't match" messages
+# get classified by a small LLM call into one of a fixed label set
+# (list_options | recommend | closer | refinement | new_list | passthrough).
+# Default False keeps the pure-regex behavior — cheap and zero extra
+# latency.
+USE_LLM_INTENT_ROUTER = _env_truthy("USE_LLM_INTENT_ROUTER")
+
+# Dedicated (typically smaller/cheaper/faster) model for intent
+# classification. Leave empty to reuse LLM_MODEL. The router is a
+# structured-output task with ≤10 labels, so a 1B-3B class model is
+# plenty. Good picks:
+#   Google GenAI:  gemini-2.5-flash-lite / gemma-3-1b-it
+#   OpenRouter:    google/gemma-3-1b-it, meta-llama/llama-3.2-1b-instruct,
+#                  mistralai/ministral-3b, openai/gpt-4.1-nano,
+#                  google/gemini-2.5-flash-lite
+# When unset, routing uses the main LLM_MODEL (slower + pricier).
+LLM_ROUTER_MODEL = os.getenv("LLM_ROUTER_MODEL", "").strip()
+
+# Sampling temperature for the router. Classification wants
+# determinism — we override the default 0.3 to 0 so labels are stable
+# across identical inputs.
+LLM_ROUTER_TEMPERATURE = float(os.getenv("LLM_ROUTER_TEMPERATURE", "0.0"))
+
 # --- Routing ---
 # OpenRouteService (free tier: 2000 req/day, no credit card needed)
 # Sign up at https://openrouteservice.org/dev/#/signup

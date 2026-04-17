@@ -99,3 +99,39 @@ def test_cache_entries_annotate_source_and_store(fake_caches):
     res = ps.search_products("bananas", include_mock=False)
     assert {r["source"] for r in res} == {"cache"}
     assert {r["store_id"] for r in res} == {"trader_joes_shadyside", "aldi_greenfield"}
+
+
+# ---------- ranked search --------------------------------------------------
+
+def test_relevance_tier_classification():
+    # exact phrase
+    assert ps._relevance_tier("ground beef", "Fresh Ground Beef 80/20") == 0
+    # all words present (different order)
+    assert ps._relevance_tier("ground beef", "Beef Patties Ground 80/20") == 1
+    # neither phrase nor all tokens
+    assert ps._relevance_tier("ground beef", "Beef Broth 32 oz") == 2
+    # empty inputs degrade gracefully
+    assert ps._relevance_tier("", "anything") == 2
+    assert ps._relevance_tier("foo", "") == 2
+
+
+def test_search_ranked_puts_exact_matches_first(fake_caches, monkeypatch):
+    # Add a noisy item to verify ordering
+    extra = {
+        "store_id": "noise_store",
+        "scraped_date": "2026-04-16",
+        "items": [
+            {"store": "noise", "item_name": "Pork Rinds Snack 4 oz", "item_price": 1.99},
+            {"store": "noise", "item_name": "Pork Loin Roast 2 lb", "item_price": 9.99},
+        ],
+    }
+    cache_dir = Path(ps.PRICE_CACHE_DIR)
+    (cache_dir / "noise_store.json").write_text(json.dumps(extra))
+
+    res = ps.search_products_ranked("pork loin", include_mock=False)
+    # tier 0 (contains "pork loin") items should appear before tier 1 ("pork rinds" only has "pork")
+    tiers = [r["_relevance_tier"] for r in res]
+    assert tiers == sorted(tiers), f"tiers should be non-decreasing, got {tiers}"
+    # first item must be a tier-0 match
+    assert res[0]["_relevance_tier"] == 0
+    assert "pork loin" in res[0]["item_name"].lower()

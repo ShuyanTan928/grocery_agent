@@ -69,12 +69,14 @@ class TestFindCheapestWithSynonyms:
         result = find_cheapest("bone-in pork chops", data)
         assert result is not None
 
-    def test_sourdough_resolves_to_bread(self):
-        # "sourdough" is not a mock-data category; synonyms map it to "bread".
+    def test_sourdough_returns_none_when_no_actual_sourdough_listed(self):
+        # Strict tier check: "sourdough" is a synonym surface form for the
+        # "bread" category, but none of the mock bread entries actually
+        # have "sourdough" in their item_name. We now refuse to silently
+        # serve "Whole Wheat Bread" when the user asked for sourdough —
+        # the cache fallback (or recommend flow) will handle that case.
         data = load_prices()
-        result = find_cheapest("sourdough", data)
-        assert result is not None
-        assert "bread" in result["item_name"].lower() or "loaf" in result["item_name"].lower() or "sourdough" in result["item_name"].lower()
+        assert find_cheapest("sourdough", data) is None
 
     def test_spaghetti_resolves_to_pasta(self):
         data = load_prices()

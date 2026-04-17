@@ -8,12 +8,14 @@
 # CLI:
 #   uv run python -m tools.product_search --q milk
 #   uv run python -m tools.product_search --q "pork loin" --store trader_joes --limit 5
+#   uv run python -m tools.product_search --q "ground beef" --ranked
 # ============================================================
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -146,6 +148,82 @@ def search_products(
     return matches
 
 
+def _relevance_tier(query: str, item_name: str) -> int:
+    """Classify how relevant an item is to the query.
+
+    0 = exact phrase match (item name contains the full query string)
+    1 = bag-of-words match (every token appears as a WHOLE word — optional
+        trailing "s" for plurals — so "ice cream" does NOT match
+        "pumpkin spice creamy yogurt", but "egg" still matches "eggs")
+    2 = looser match (only via synonym expansion or partial substring)
+
+    Lower is better.
+    """
+    q = (query or "").strip().lower()
+    name = (item_name or "").lower()
+    if not q or not name:
+        return 2
+    if q in name:
+        return 0
+    tokens = [t for t in re.split(r"\s+", q) if t]
+    if tokens and all(
+        re.search(rf"\b{re.escape(tok)}s?\b", name) for tok in tokens
+    ):
+        return 1
+    return 2
+
+
+def search_products_ranked(
+    query: str,
+    *,
+    store_ids: Iterable[str] | None = None,
+    include_mock: bool = False,
+    max_price: float | None = None,
+    limit: int | None = None,
+    expand_synonyms: bool = True,
+) -> list[dict]:
+    """Relevance-first search: items grouped into tiers (exact > bag-of-words >
+    synonym-only) and price-asc within each tier, then concatenated.
+
+    This avoids the "cheap loose-match noise crowds out real matches"
+    failure mode of price-sorted search (e.g. a query for "ground beef"
+    pulling in $1.19 beef broth before any actual ground beef).
+
+    Each returned item has an extra `_relevance_tier` field (0/1/2).
+    Mock data is excluded by default since this helper is meant for
+    real-cache-backed recommendations.
+    """
+    raw = search_products(
+        query,
+        store_ids=store_ids,
+        include_mock=include_mock,
+        max_price=max_price,
+        limit=None,
+        sort_by="none",
+        expand_synonyms=expand_synonyms,
+    )
+    tiered: dict[int, list[dict]] = {0: [], 1: [], 2: []}
+    for it in raw:
+        tier = _relevance_tier(query, it.get("item_name") or "")
+        out = {**it, "_relevance_tier": tier}
+        tiered[tier].append(out)
+
+    for bucket in tiered.values():
+        bucket.sort(key=lambda x: (
+            x.get("item_price") is None,
+            x.get("item_price") or 0,
+        ))
+
+    ranked: list[dict] = []
+    for t in (0, 1, 2):
+        ranked.extend(tiered[t])
+        if limit is not None and len(ranked) >= limit:
+            return ranked[:limit]
+    if limit is not None:
+        return ranked[:limit]
+    return ranked
+
+
 def format_results(results: list[dict]) -> str:
     """Human-friendly pretty-print for CLI output."""
     if not results:
@@ -172,18 +250,30 @@ def main() -> None:
     p.add_argument("--sort", choices=["price", "name", "none"], default="price")
     p.add_argument("--no-mock", action="store_true", help="exclude mock data")
     p.add_argument("--no-synonyms", action="store_true", help="disable synonym expansion")
+    p.add_argument("--ranked", action="store_true",
+                   help="use relevance-first ranking (exact > bag-of-words > synonym), real caches only")
     p.add_argument("--json", action="store_true", help="emit JSON instead of pretty text")
     args = p.parse_args()
 
-    results = search_products(
-        args.query,
-        store_ids=args.stores,
-        include_mock=not args.no_mock,
-        max_price=args.max_price,
-        limit=args.limit,
-        sort_by=args.sort,
-        expand_synonyms=not args.no_synonyms,
-    )
+    if args.ranked:
+        results = search_products_ranked(
+            args.query,
+            store_ids=args.stores,
+            include_mock=not args.no_mock,
+            max_price=args.max_price,
+            limit=args.limit,
+            expand_synonyms=not args.no_synonyms,
+        )
+    else:
+        results = search_products(
+            args.query,
+            store_ids=args.stores,
+            include_mock=not args.no_mock,
+            max_price=args.max_price,
+            limit=args.limit,
+            sort_by=args.sort,
+            expand_synonyms=not args.no_synonyms,
+        )
 
     if args.json:
         json.dump(results, sys.stdout, indent=2, ensure_ascii=False)

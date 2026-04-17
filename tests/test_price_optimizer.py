@@ -14,6 +14,9 @@ from tools.price_optimizer import (
 )
 
 
+pytestmark = pytest.mark.usefixtures("cache_from_mock")
+
+
 class TestFindCheapest:
     """Tests for single-item price lookup."""
 

@@ -12,6 +12,9 @@ from tools.route_planner import plan_route
 from tools.errand_runner import generate_errand_quote
 
 
+pytestmark = pytest.mark.usefixtures("cache_from_mock")
+
+
 class TestFullShoppingPipeline:
     """
     Integration tests that chain optimizer -> route planner -> errand runner

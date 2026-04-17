@@ -5,8 +5,13 @@
 # These tests use the mock price data; no LLM calls are made.
 # ============================================================
 
+import pytest
+
 from tools.price_optimizer import optimize_shopping_list, find_at_store, load_prices
 from agent.agent import apply_preferred_stores, apply_avoid_stores
+
+
+pytestmark = pytest.mark.usefixtures("cache_from_mock")
 
 
 def _find_item_store(plan: dict, item_keyword: str) -> str | None:
