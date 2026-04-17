@@ -20,8 +20,13 @@ def _cache_path(store_id: str) -> Path:
     return Path(PRICE_CACHE_DIR) / f"{store_id}.json"
 
 
+def _today_utc() -> date:
+    """All freshness comparisons use UTC date so save/load agree across tz."""
+    return datetime.now(timezone.utc).date()
+
+
 def load_cached(store_id: str, *, today: date | None = None) -> dict | None:
-    """Return cached payload if its scraped_date matches today, else None."""
+    """Return cached payload if its scraped_date matches today (UTC), else None."""
     path = _cache_path(store_id)
     if not path.exists():
         return None
@@ -31,7 +36,7 @@ def load_cached(store_id: str, *, today: date | None = None) -> dict | None:
     except (json.JSONDecodeError, OSError):
         return None
 
-    today_str = (today or date.today()).isoformat()
+    today_str = (today or _today_utc()).isoformat()
     if data.get("scraped_date") != today_str:
         return None
     return data

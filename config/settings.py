@@ -55,6 +55,11 @@ PRICE_CACHE_DIR = os.getenv("PRICE_CACHE_DIR", "data/price_cache/")
 # 638 = Pittsburgh Shadyside (6343 Penn Ave).
 TRADER_JOES_STORE_CODE = os.getenv("TRADER_JOES_STORE_CODE", "638")
 
+# --- Giant Eagle ---
+# Internal store code used by core.shop.gianteagle.com/api/v2.
+# 38 = Squirrel Hill (1901 Murray Ave, Pittsburgh PA 15217).
+GIANT_EAGLE_STORE_CODE = os.getenv("GIANT_EAGLE_STORE_CODE", "38")
+
 # --- User home location (Pittsburgh default for testing) ---
 # This is the starting point for route planning
 HOME_ADDRESS = "4800 Forbes Ave, Pittsburgh, PA 15213"  # Carnegie Mellon University

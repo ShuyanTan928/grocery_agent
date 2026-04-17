@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 
 import pytest
 
 from tools import price_cache
+
+
+def _today_utc_str() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
 
 
 @pytest.fixture(autouse=True)
@@ -35,7 +39,7 @@ def test_save_and_load_roundtrip(tmp_cache_dir):
     assert path.exists()
     data = json.loads(path.read_text())
     assert data["store_id"] == "trader_joes_shadyside"
-    assert data["scraped_date"] == date.today().isoformat()
+    assert data["scraped_date"] == _today_utc_str()
     assert data["item_count"] == 2
 
     cached = price_cache.load_cached("trader_joes_shadyside")
@@ -69,4 +73,4 @@ def test_cache_info_exposes_metadata(tmp_cache_dir):
 
     assert info is not None
     assert info["item_count"] == 2
-    assert info["scraped_date"] == date.today().isoformat()
+    assert info["scraped_date"] == _today_utc_str()
