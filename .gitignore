@@ -31,4 +31,4 @@ htmlcov/
 Thumbs.db
 
 # Runtime cache
-data/price_cache/
+# data/price_cache/

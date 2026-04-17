@@ -49,6 +49,16 @@
       "lat": 40.4564,
       "lng": -79.9303,
       "hours": "7:00-22:00"
+    },
+    {
+      "id": "target_east_liberty",
+      "display_name": "target",
+      "name": "Target",
+      "branch": "East Liberty",
+      "address": "6231 Penn Ave, Pittsburgh, PA 15206",
+      "lat": 40.4618,
+      "lng": -79.9245,
+      "hours": "7:00-22:00"
     }
   ]
 }

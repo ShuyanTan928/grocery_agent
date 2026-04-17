@@ -12,12 +12,20 @@ from __future__ import annotations
 import argparse
 import sys
 
-from config.settings import GIANT_EAGLE_STORE_CODE, TRADER_JOES_STORE_CODE
+from config.settings import (
+    GIANT_EAGLE_STORE_CODE,
+    TARGET_STORE_CODE,
+    TRADER_JOES_STORE_CODE,
+)
 from tools.price_cache import cache_info, load_cached, save_cache
 from tools.price_optimizer import load_stores
 from tools.scrapers.giant_eagle import (
     build_store_meta as build_giant_eagle_meta,
     fetch_giant_eagle,
+)
+from tools.scrapers.target import (
+    build_store_meta as build_target_meta,
+    fetch_target,
 )
 from tools.scrapers.trader_joes import (
     build_store_meta as build_trader_joes_meta,
@@ -26,6 +34,7 @@ from tools.scrapers.trader_joes import (
 
 TRADER_JOES_STORE_ID = "trader_joes_shadyside"
 GIANT_EAGLE_STORE_ID = "giant_eagle_squirrel_hill"
+TARGET_STORE_ID = "target_east_liberty"
 
 
 def _trader_joes_config() -> dict:
@@ -74,9 +83,33 @@ def _giant_eagle_config() -> dict:
     }
 
 
+def _target_config() -> dict:
+    stores = load_stores()
+    base = stores.get(TARGET_STORE_ID, {})
+    store_meta = build_target_meta(
+        TARGET_STORE_CODE,
+        store_id=TARGET_STORE_ID,
+        branch=base.get("branch", "East Liberty"),
+        address=base.get("address", "6231 Penn Ave, Pittsburgh, PA 15206"),
+        lat=base.get("lat"),
+        lng=base.get("lng"),
+        hours=base.get("hours"),
+    )
+    return {
+        "store_id": TARGET_STORE_ID,
+        "store_meta": store_meta,
+        "fetch": lambda: fetch_target(
+            TARGET_STORE_CODE,
+            store_meta["address"],
+            store_meta=store_meta,
+        ),
+    }
+
+
 STORES: dict[str, dict] = {
     "trader_joes": _trader_joes_config(),
     "giant_eagle": _giant_eagle_config(),
+    "target": _target_config(),
 }
 
 

@@ -60,6 +60,11 @@ TRADER_JOES_STORE_CODE = os.getenv("TRADER_JOES_STORE_CODE", "638")
 # 38 = Squirrel Hill (1901 Murray Ave, Pittsburgh PA 15217).
 GIANT_EAGLE_STORE_CODE = os.getenv("GIANT_EAGLE_STORE_CODE", "38")
 
+# --- Target ---
+# Internal store_id used by redsky.target.com for store-scoped pricing.
+# 2757 = East Liberty (6231 Penn Ave, Pittsburgh PA 15206), ~1 mi from CMU.
+TARGET_STORE_CODE = os.getenv("TARGET_STORE_CODE", "2757")
+
 # --- User home location (Pittsburgh default for testing) ---
 # This is the starting point for route planning
 HOME_ADDRESS = "4800 Forbes Ave, Pittsburgh, PA 15213"  # Carnegie Mellon University
