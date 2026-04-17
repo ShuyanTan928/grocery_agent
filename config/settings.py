@@ -65,6 +65,13 @@ GIANT_EAGLE_STORE_CODE = os.getenv("GIANT_EAGLE_STORE_CODE", "38")
 # 2757 = East Liberty (6231 Penn Ave, Pittsburgh PA 15206), ~1 mi from CMU.
 TARGET_STORE_CODE = os.getenv("TARGET_STORE_CODE", "2757")
 
+# --- Aldi ---
+# Aldi runs e-commerce on Instacart Connect; pricing/availability is
+# driven by (postal_code, zone_id) rather than a store_code, but we
+# keep a nominal store_code for cache/config parity with the others.
+# 4061 = Murray Ave (closest Aldi to CMU at the Greenfield/Sq. Hill border).
+ALDI_STORE_CODE = os.getenv("ALDI_STORE_CODE", "4061")
+
 # --- User home location (Pittsburgh default for testing) ---
 # This is the starting point for route planning
 HOME_ADDRESS = "4800 Forbes Ave, Pittsburgh, PA 15213"  # Carnegie Mellon University

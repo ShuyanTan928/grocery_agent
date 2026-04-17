@@ -13,12 +13,17 @@ import argparse
 import sys
 
 from config.settings import (
+    ALDI_STORE_CODE,
     GIANT_EAGLE_STORE_CODE,
     TARGET_STORE_CODE,
     TRADER_JOES_STORE_CODE,
 )
 from tools.price_cache import cache_info, load_cached, save_cache
 from tools.price_optimizer import load_stores
+from tools.scrapers.aldi import (
+    build_store_meta as build_aldi_meta,
+    fetch_aldi,
+)
 from tools.scrapers.giant_eagle import (
     build_store_meta as build_giant_eagle_meta,
     fetch_giant_eagle,
@@ -35,6 +40,7 @@ from tools.scrapers.trader_joes import (
 TRADER_JOES_STORE_ID = "trader_joes_shadyside"
 GIANT_EAGLE_STORE_ID = "giant_eagle_squirrel_hill"
 TARGET_STORE_ID = "target_east_liberty"
+ALDI_STORE_ID = "aldi_greenfield"
 
 
 def _trader_joes_config() -> dict:
@@ -106,10 +112,34 @@ def _target_config() -> dict:
     }
 
 
+def _aldi_config() -> dict:
+    stores = load_stores()
+    base = stores.get(ALDI_STORE_ID, {})
+    store_meta = build_aldi_meta(
+        ALDI_STORE_CODE,
+        store_id=ALDI_STORE_ID,
+        branch=base.get("branch", "Greenfield"),
+        address=base.get("address", "4061 Murray Ave, Pittsburgh, PA 15217"),
+        lat=base.get("lat"),
+        lng=base.get("lng"),
+        hours=base.get("hours"),
+    )
+    return {
+        "store_id": ALDI_STORE_ID,
+        "store_meta": store_meta,
+        "fetch": lambda: fetch_aldi(
+            ALDI_STORE_CODE,
+            store_meta["address"],
+            store_meta=store_meta,
+        ),
+    }
+
+
 STORES: dict[str, dict] = {
     "trader_joes": _trader_joes_config(),
     "giant_eagle": _giant_eagle_config(),
     "target": _target_config(),
+    "aldi": _aldi_config(),
 }
 
 
