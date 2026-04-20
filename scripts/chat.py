@@ -88,6 +88,14 @@ Flag reference
 --router-temp        Sampling temperature for the router only.
                      env: LLM_ROUTER_TEMPERATURE.  default: 0.0.
 
+--llm-list-options / --no-llm-list-options
+                     When on (default), "list options" replies are
+                     LLM-filtered via the recommender pipeline so brand-
+                     name drift (e.g. "lamb" → "Lamb Weston fries") gets
+                     pruned; each call costs one extra LLM roundtrip.
+                     Turn off for deterministic tier-only results.
+                     env: USE_LLM_LIST_OPTIONS.  default: true.
+
 --dump-state         After every reply, print the session state
                      (current state, parsed items, prefs).
 
@@ -118,6 +126,12 @@ Interactive commands
                    help="Small model id for the intent router.")
     p.add_argument("--router-temp", type=float,
                    help="Router sampling temperature.")
+    p.add_argument("--llm-list-options", dest="llm_list_options",
+                   action="store_true", default=None,
+                   help="Force LLM-filtered list_options on.")
+    p.add_argument("--no-llm-list-options", dest="llm_list_options",
+                   action="store_false",
+                   help="Force LLM-filtered list_options off (tier-only).")
     p.add_argument("--dump-state", action="store_true",
                    help="Print session state after every reply.")
     p.add_argument("-v", "--verbose", action="store_true",
@@ -148,6 +162,10 @@ def apply_cli_to_env(args: argparse.Namespace) -> None:
         os.environ["LLM_ROUTER_MODEL"] = args.router_model
     if args.router_temp is not None:
         os.environ["LLM_ROUTER_TEMPERATURE"] = str(args.router_temp)
+    if args.llm_list_options is True:
+        os.environ["USE_LLM_LIST_OPTIONS"] = "1"
+    elif args.llm_list_options is False:
+        os.environ["USE_LLM_LIST_OPTIONS"] = "0"
 
 
 # ──────────────────────────────────────────────────────────────
@@ -192,7 +210,7 @@ def render_flags() -> str:
     from config.settings import (
         LLM_MODEL, LLM_PROVIDER,
         LLM_ROUTER_MODEL, LLM_ROUTER_TEMPERATURE,
-        USE_LLM_INTENT_ROUTER,
+        USE_LLM_INTENT_ROUTER, USE_LLM_LIST_OPTIONS,
     )
     return json.dumps({
         "provider": LLM_PROVIDER,
@@ -200,6 +218,7 @@ def render_flags() -> str:
         "router_enabled": USE_LLM_INTENT_ROUTER,
         "router_model": LLM_ROUTER_MODEL or "(fallback → main_model)",
         "router_temperature": LLM_ROUTER_TEMPERATURE,
+        "llm_list_options": USE_LLM_LIST_OPTIONS,
     }, indent=2)
 
 

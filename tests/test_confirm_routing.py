@@ -46,6 +46,13 @@ def patched_confirm(monkeypatch):
     monkeypatch.setattr(a, "update_quantities_from_reply", fake_update_qty)
     monkeypatch.setattr(a, "extract_preferences_from_reply", fake_extract_prefs)
     monkeypatch.setattr(a, "session_execute", fake_execute)
+
+    # Force list_options down its deterministic (non-LLM) branch so these
+    # tests don't need to stub the recommender pipeline. The dedicated
+    # test_list_options_uses_llm_filter test re-enables + stubs it.
+    import config.settings as cs
+    monkeypatch.setattr(cs, "USE_LLM_LIST_OPTIONS", False)
+
     return calls
 
 
@@ -259,3 +266,198 @@ def test_list_options_with_no_context_asks_user(patched_confirm):
     assert "which item" in reply.lower()
     assert patched_confirm["call_llm"] == 0
     assert patched_confirm["execute"] == 0
+
+
+def test_list_options_uses_llm_filter_and_feeds_pick(patched_confirm, monkeypatch):
+    """When USE_LLM_LIST_OPTIONS is on, handle_list_options_request should
+    call recommend_for_query, show only the LLM-approved picks (dropping
+    brand-name drift like 'Lamb Weston fries'), and stash them so a
+    subsequent 'pick 1' still resolves to a real SKU."""
+    # Re-enable the LLM filter just for this test (patched_confirm turns
+    # it off by default for determinism).
+    import config.settings as cs
+    monkeypatch.setattr(cs, "USE_LLM_LIST_OPTIONS", True)
+
+    from tools import recommender as rec
+
+    calls = {"recommend": 0}
+
+    def fake_recommend(query, *, topk=3, **kw):
+        calls["recommend"] += 1
+        assert query  # non-empty
+        # Simulate the LLM correctly filtering out "Lamb Weston fries"
+        # (a brand-name match that's actually potato fries) and keeping
+        # only real lamb meat.
+        return {
+            "query": query,
+            "topk": topk,
+            "picks": [
+                {
+                    "rank": 1,
+                    "candidate": {
+                        "name": "Catelli Ground Lamb",
+                        "price": 9.99,
+                        "store_id": "giant_eagle_squirrel_hill",
+                        "store": "giant_eagle",
+                        "url": "https://example.com/ground-lamb",
+                    },
+                    "reason": "real lamb meat, reasonably priced",
+                },
+            ],
+            "summary": "Catelli ground lamb is the best real-lamb option.",
+        }
+
+    monkeypatch.setattr(rec, "recommend_for_query", fake_recommend)
+    # Stub load_stores so we show a pretty store name + can route later.
+    monkeypatch.setattr(
+        a, "load_stores",
+        lambda: {"giant_eagle_squirrel_hill": {
+            "name": "Giant Eagle (Squirrel Hill)",
+            "address": "1900 Murray Ave",
+        }},
+    )
+    monkeypatch.setattr(a, "plan_route", lambda **kw: {"stops": kw["store_ids"]})
+
+    s = ShoppingSession()
+    s.state = "CLARIFY"
+    s.raw_items = [{"name": "lamb", "quantity": None, "unit": None, "ambiguous": False}]
+
+    reply1 = chat(s, "can you list the options?")
+
+    assert calls["recommend"] == 1                   # LLM filter ran
+    assert "Catelli Ground Lamb" in reply1
+    assert "Lamb Weston" not in reply1                # drift filtered
+    assert "real lamb meat" in reply1                 # LLM reason rendered
+    assert len(s.last_options) == 1                   # staged for pick N
+    assert s.last_options[0]["store_id"] == "giant_eagle_squirrel_hill"
+    assert s.last_options[0]["url"]                   # URL carried through
+
+    # Pick N must resolve to the same SKU without re-running search
+    # (this is the end-to-end guarantee we're buying with this change).
+    reply2 = chat(s, "pick 1")
+    assert s.state == "EXECUTE"
+    assert "Catelli Ground Lamb" in reply2
+    assert s.shopping_plan["total_cost"] == 9.99
+
+
+# ---------- "pick N" side-flow -------------------------------------------
+
+from agent.agent import detect_pick_intent, handle_pick_request
+
+
+def _session_with_options() -> ShoppingSession:
+    s = ShoppingSession()
+    s.state = "CLARIFY"
+    s.raw_items = [{"name": "lamb", "quantity": None, "unit": None, "ambiguous": False}]
+    s.last_options = [
+        {"item_name": "Lamb Weston Fries", "item_price": 5.99,
+         "store_id": "giant_eagle_squirrel_hill", "store_display": "Giant Eagle", "url": None},
+        {"item_name": "Lamb Weston Waffle Fries", "item_price": 5.99,
+         "store_id": "giant_eagle_squirrel_hill", "store_display": "Giant Eagle", "url": None},
+        {"item_name": "Catelli Ground Lamb", "item_price": 9.99,
+         "store_id": "giant_eagle_squirrel_hill", "store_display": "Giant Eagle",
+         "url": "https://example.com/ground-lamb"},
+    ]
+    return s
+
+
+@pytest.mark.parametrize("msg,expected", [
+    ("3", 3),
+    ("#3", 3),
+    ("pick 3", 3),
+    ("pick #3", 3),
+    ("I'll take 2", 2),
+    ("choose 1", 1),
+    ("I prefer 3", 3),
+    ("I want option 3", 3),
+    ("option 3", 3),
+    ("number 2", 2),
+    ("go with 2", 2),
+    ("no, I prefer lamb of option 3", 3),
+    ("hmm, I think #2 is best", 2),
+])
+def test_detect_pick_intent_positive(msg, expected):
+    s = _session_with_options()
+    assert detect_pick_intent(msg, s) == expected
+
+
+@pytest.mark.parametrize("msg", [
+    "I need 3 bananas",        # 3 is a quantity, not a pick index
+    "add 3 eggs",
+    "yes",
+    "no thanks",
+    "4",                       # out of range (only 3 options staged)
+    "pick 99",                 # out of range
+    "list some options",       # question, not a pick
+    "",
+])
+def test_detect_pick_intent_negative(msg):
+    s = _session_with_options()
+    # Allow one ambiguity: "3 bananas" shouldn't pick — our bare-number
+    # regex anchors to ^\s*#?\s*(\d+)$ so trailing words cause a miss.
+    assert detect_pick_intent(msg, s) is None
+
+
+def test_detect_pick_intent_needs_staged_options():
+    s = ShoppingSession()  # no last_options
+    assert detect_pick_intent("pick 2", s) is None
+    assert detect_pick_intent("3", s) is None
+
+
+def test_handle_pick_builds_single_sku_plan(monkeypatch):
+    s = _session_with_options()
+    # Stub load_stores so we don't hit real config.
+    monkeypatch.setattr(
+        a, "load_stores",
+        lambda: {"giant_eagle_squirrel_hill": {
+            "name": "Giant Eagle (Squirrel Hill)",
+            "address": "1900 Murray Ave, Pittsburgh, PA 15217",
+        }},
+    )
+    # Stub plan_route to avoid maps dep.
+    monkeypatch.setattr(a, "plan_route", lambda **kw: {"stops": kw["store_ids"]})
+
+    reply = handle_pick_request(s, 3)
+
+    assert s.state == "EXECUTE"
+    assert s.shopping_plan is not None
+    plan = s.shopping_plan["plan"]
+    assert "giant_eagle_squirrel_hill" in plan
+    only_item = plan["giant_eagle_squirrel_hill"][0]
+    assert only_item["item"] == "Catelli Ground Lamb"
+    assert only_item["price"] == 9.99
+    assert only_item["source"] == "user_pick"
+    assert s.shopping_plan["total_cost"] == 9.99
+    # last_options is consumed so a later bare number doesn't re-pick.
+    assert s.last_options == []
+    # User-facing copy mentions the item + price + store.
+    assert "Catelli Ground Lamb" in reply
+    assert "9.99" in reply
+    assert "Giant Eagle" in reply
+
+
+def test_pick_via_chat_skips_optimize(patched_confirm, monkeypatch):
+    """E2E through chat(): 'I prefer 3' while options are staged must NOT
+    go through session_execute (which would re-run optimize_shopping_list
+    and potentially drift back to 'Lamb Weston fries')."""
+    s = _session_with_options()
+    monkeypatch.setattr(
+        a, "load_stores",
+        lambda: {"giant_eagle_squirrel_hill": {
+            "name": "Giant Eagle (Squirrel Hill)",
+            "address": "1900 Murray Ave",
+        }},
+    )
+    monkeypatch.setattr(a, "plan_route", lambda **kw: {"stops": kw["store_ids"]})
+
+    reply = chat(s, "I prefer 3")
+
+    assert patched_confirm["execute"] == 0         # no optimize pass
+    assert patched_confirm["call_llm"] == 0        # no LLM summary either
+    assert s.state == "EXECUTE"
+    assert "Catelli Ground Lamb" in reply
+    # And a follow-up "no thanks" cleanly closes the session via the
+    # existing EXECUTE-state closer handling.
+    reply2 = chat(s, "no thanks")
+    assert s.state == "DONE"
+    assert "happy shopping" in reply2.lower()

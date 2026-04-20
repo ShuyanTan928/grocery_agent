@@ -155,6 +155,9 @@ class ShoppingSession:
         self.errand_quote = None
         self.clarification_done = False
         self.want_errand = False
+        # Last list_options hits, kept so the user can say "pick 3" / "option 2"
+        # and we can resolve that back to a concrete SKU. Cleared once consumed.
+        self.last_options: list[dict] = []
 
     def add_message(self, role: str, text: str):
         self.conversation_history.append({"role": role, "text": text})
@@ -694,12 +697,63 @@ def _active_query_for_options(session: ShoppingSession) -> str | None:
     return None
 
 
+def _list_options_via_llm(query: str, topk: int = 5) -> list[dict]:
+    """Run the recommender and project its LLM-ranked picks into the
+    {item_name, item_price, store_id, url, reason} shape the list_options
+    UI expects. Returns [] on no candidates or on LLM failure — caller
+    is responsible for the fallback.
+    """
+    from tools.recommender import recommend_for_query
+    try:
+        result = recommend_for_query(query, topk=topk)
+    except Exception:
+        return []
+
+    picks = result.get("picks") or []
+    out: list[dict] = []
+    for p in picks:
+        c = p.get("candidate") or {}
+        out.append({
+            "item_name": c.get("name", "?"),
+            "item_price": c.get("price"),
+            "store_id": c.get("store_id") or "",
+            "url": c.get("url"),
+            "reason": p.get("reason") or "",
+        })
+    return out
+
+
+def _list_options_via_search(query: str, topk: int = 5) -> list[dict]:
+    """Raw cache search, tier-ordered — no LLM call. Used when
+    USE_LLM_LIST_OPTIONS is off or the LLM path failed."""
+    from tools.product_search import search_products_ranked
+    hits = search_products_ranked(query, include_mock=False, limit=topk * 2)
+    hits = [h for h in hits if h.get("item_price") is not None][:topk]
+    return [
+        {
+            "item_name": h.get("item_name", "?"),
+            "item_price": h.get("item_price"),
+            "store_id": h.get("store_id") or "",
+            "url": h.get("url"),
+            "reason": "",
+        }
+        for h in hits
+    ]
+
+
 def handle_list_options_request(session: ShoppingSession, user_message: str) -> str:
     """Render a brief top-K options list for the active item WITHOUT
     advancing the state machine. This is a "question" handler — the
     user is asking about alternatives, not progressing the shopping
-    flow."""
-    from tools.product_search import search_products_ranked
+    flow.
+
+    When USE_LLM_LIST_OPTIONS is on (default), we pass the cache
+    candidates through the recommender's LLM so it can filter out
+    brand-name drift (e.g. "lamb" → "Lamb Weston fries"). If the LLM
+    path is off or returns nothing usable, we fall back to the raw
+    relevance-tier search so the user at least sees something.
+    """
+    from config.settings import USE_LLM_LIST_OPTIONS
 
     query = _active_query_for_options(session)
     if not query:
@@ -708,30 +762,153 @@ def handle_list_options_request(session: ShoppingSession, user_message: str) -> 
             "(e.g. \"options for avocados\")"
         )
 
-    hits = search_products_ranked(query, include_mock=False, limit=8)
-    hits = [h for h in hits if h.get("item_price") is not None][:5]
-    if not hits:
+    options: list[dict] = []
+    if USE_LLM_LIST_OPTIONS:
+        options = _list_options_via_llm(query, topk=5)
+    if not options:
+        # Safety net: cheaper and deterministic.
+        options = _list_options_via_search(query, topk=5)
+
+    if not options:
+        session.last_options = []
         return (
             f"I couldn't find cached options for \"{query}\". "
             "Try a different name, or say \"recommend <item>\" for ranked picks."
         )
 
     stores = load_stores()
-    lines = [f"Here are {len(hits)} \"{query}\" options I have in cache:\n"]
-    for i, h in enumerate(hits, 1):
-        sid = h.get("store_id") or ""
-        store_name = (stores.get(sid) or {}).get("name") or h.get("store") or sid
-        price = h.get("item_price")
-        url = h.get("url")
-        line = f"{i}. **{h.get('item_name','?')}** — {store_name} — ${price:.2f}"
-        if url:
-            line += f"  ({url})"
+    # Snapshot so "pick 3" on the next turn resolves back to a concrete
+    # SKU instead of re-running search (which would re-introduce the
+    # "Lamb Weston fries" brand-name drift).
+    session.last_options = [
+        {
+            "item_name": o["item_name"],
+            "item_price": o["item_price"],
+            "store_id": o["store_id"],
+            "store_display": (stores.get(o["store_id"]) or {}).get("name") or o["store_id"],
+            "url": o.get("url"),
+        }
+        for o in options
+    ]
+
+    lines = [f"Here are {len(options)} \"{query}\" options I have in cache:\n"]
+    for i, o in enumerate(options, 1):
+        sid = o["store_id"]
+        store_name = (stores.get(sid) or {}).get("name") or sid
+        price = o["item_price"]
+        line = f"{i}. **{o['item_name']}** — {store_name} — ${price:.2f}"
+        if o.get("url"):
+            line += f"  ({o['url']})"
         lines.append(line)
+        if o.get("reason"):
+            lines.append(f"   → {o['reason']}")
     lines.append(
         "\nSay the number to lock one in (e.g. \"pick 2\"), "
         "or keep going with your list."
     )
     return "\n".join(lines)
+
+
+# --------------- "pick N" side-flow ---------------
+#
+# Only fires when session.last_options is populated (i.e. we just showed
+# a list_options reply). Catches:
+#   "pick 3", "choose 2", "I'll take 4", "go with 1",
+#   "I prefer 3", "I want #2", "option 3", "number 4", "#3", bare "3".
+# Guardrails: N must be in range; last_options is cleared after a pick.
+_PICK_PATTERNS = [
+    re.compile(r"^\s*#?\s*(\d+)\s*[.!?]?\s*$"),
+    re.compile(
+        r"\b(?:pick|choose|take|want|prefer|go\s+with|i['\u2019]?ll\s+take)"
+        r"\s+(?:option\s*|number\s*|item\s*|#\s*)?(\d+)\b",
+        re.I,
+    ),
+    re.compile(r"\b(?:option|number|item|no\.?)\s*#?\s*(\d+)\b", re.I),
+    re.compile(r"#\s*(\d+)\b"),
+]
+
+
+def detect_pick_intent(message: str, session: ShoppingSession) -> int | None:
+    """Return 1-indexed pick number iff the user is selecting one of the
+    options we just showed. Returns None if there's nothing to pick from
+    or the message doesn't look like a pick."""
+    if not message or not session.last_options:
+        return None
+    for pat in _PICK_PATTERNS:
+        m = pat.search(message)
+        if not m:
+            continue
+        try:
+            n = int(m.group(1))
+        except (ValueError, IndexError):
+            continue
+        if 1 <= n <= len(session.last_options):
+            return n
+    return None
+
+
+def handle_pick_request(session: ShoppingSession, pick_num: int) -> str:
+    """Lock the user's choice from `session.last_options` into a one-item
+    shopping plan. Skips `optimize_shopping_list` entirely so we don't
+    re-derive the item from a fuzzy text query (which is exactly how
+    'lamb' drifted to 'Lamb Weston fries' before)."""
+    opt = session.last_options[pick_num - 1]
+    stores = load_stores()
+
+    sid = opt.get("store_id") or ""
+    store_meta = stores.get(sid, {}) if sid else {}
+    store_display = (
+        store_meta.get("name")
+        or opt.get("store_display")
+        or sid
+        or "the store"
+    )
+    try:
+        price = float(opt.get("item_price") or 0.0)
+    except (TypeError, ValueError):
+        price = 0.0
+
+    plan_entry = {
+        "item": opt.get("item_name", "?"),
+        "price": price,
+        "store_display": store_display,
+        "url": opt.get("url"),
+        "source": "user_pick",
+    }
+    shopping_plan = {
+        "plan": {sid: [plan_entry]} if sid else {},
+        "total_cost": round(price, 2),
+        "not_found": [],
+        "store_ids": [sid] if sid else [],
+        "stores_meta": {sid: store_meta} if sid and store_meta else {},
+    }
+
+    # Build a route if we have a resolvable store.
+    route_plan = None
+    if shopping_plan["store_ids"]:
+        try:
+            route_plan = plan_route(
+                store_ids=shopping_plan["store_ids"],
+                stores_meta=shopping_plan["stores_meta"],
+            )
+        except Exception:
+            route_plan = None
+
+    session.shopping_plan = shopping_plan
+    session.route_plan = route_plan
+    session.state = "EXECUTE"
+    # Consume the options — otherwise a later bare "3" would re-pick.
+    session.last_options = []
+
+    addr = store_meta.get("address") if store_meta else None
+    addr_line = f" ({addr})" if addr else ""
+    url_line = f"\nProduct link: {opt['url']}" if opt.get("url") else ""
+
+    return (
+        f"Locked in #{pick_num}: **{opt.get('item_name', '?')}** at "
+        f"{store_display}{addr_line} for **${price:.2f}**.{url_line}\n\n"
+        "Want me to add anything else, or are you all set?"
+    )
 
 
 def handle_recommend_request(intent: dict) -> str:
@@ -829,6 +1006,16 @@ def chat(session: ShoppingSession, user_message: str) -> str:
     Advances the session state machine as needed.
     """
     session.add_message("user", user_message)
+
+    # Side-flow: "pick 3" / "I prefer 2" / "option 4" — only fires when
+    # we have list_options results staged. Resolves directly to that SKU
+    # without going through optimize_shopping_list (which would fuzzy-
+    # match the item name and could drift, e.g. "lamb" → "Lamb Weston fries").
+    pick_n = detect_pick_intent(user_message, session)
+    if pick_n is not None:
+        reply = handle_pick_request(session, pick_n)
+        session.add_message("agent", reply)
+        return reply
 
     # Side-flow: "recommend X" / "best X" — answer directly without
     # disturbing the active shopping-list state machine.

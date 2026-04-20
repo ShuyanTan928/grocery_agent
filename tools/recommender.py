@@ -99,12 +99,17 @@ def build_candidates(
         candidates.append({
             "id": len(candidates) + 1,
             "store": _short_store(it.get("store_id")),
+            # Carried through for downstream callers (e.g. list_options → pick N)
+            # that need a concrete SKU reference. Not rendered into the LLM
+            # prompt so it doesn't inflate token use.
+            "store_id": it.get("store_id") or "",
             "name": it.get("item_name") or "",
             "size": _normalize_size(it),
             "brand": _normalize_brand(it),
             "price": float(price),
             "unit_price": _normalize_unit_price(it),
             "_tier": it.get("_relevance_tier", 2),
+            "url": it.get("url"),
         })
         if len(candidates) >= max_candidates:
             break

@@ -58,6 +58,17 @@ LLM_ROUTER_MODEL = os.getenv("LLM_ROUTER_MODEL", "").strip()
 # across identical inputs.
 LLM_ROUTER_TEMPERATURE = float(os.getenv("LLM_ROUTER_TEMPERATURE", "0.0"))
 
+# --- list_options LLM filtering ---
+# When True, handle_list_options_request routes the raw cache hits
+# through the recommender's LLM-based relevance pass before showing
+# them to the user. This is what stops brand-name drift (e.g. "lamb"
+# returning "Lamb Weston fries" at the top). Costs one extra LLM call
+# per list_options turn. Set to False to fall back to the pure regex /
+# relevance-tier ordering — cheaper but noisier.
+USE_LLM_LIST_OPTIONS = os.getenv("USE_LLM_LIST_OPTIONS", "true").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+
 # --- Routing ---
 # OpenRouteService (free tier: 2000 req/day, no credit card needed)
 # Sign up at https://openrouteservice.org/dev/#/signup
