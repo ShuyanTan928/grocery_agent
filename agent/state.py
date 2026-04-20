@@ -32,6 +32,12 @@ class AgentState:
 
     want_errand: bool = False
 
+    # Extra non-shopping waypoints the user asked to include on the route
+    # (e.g. "swing by CMU on the way home"). Each entry has
+    # {label:str, address:str, lat:float, lng:float}. Fed into plan_route
+    # alongside the stores so the TSP treats them as mandatory stops.
+    destinations: list[dict] = field(default_factory=list)
+
     conversation_history: list[dict] = field(default_factory=list)
 
     # Legacy attributes — kept so back-compat tests and any caller that
@@ -102,6 +108,10 @@ class AgentState:
             "shopping_plan": plan_summary,
             "has_route_plan": self.route_plan is not None,
             "has_errand_quote": self.errand_quote is not None,
+            "destinations": [
+                {"label": d.get("label"), "address": d.get("address")}
+                for d in self.destinations
+            ],
         }
 
     def to_full_dict(self) -> dict:
@@ -116,6 +126,7 @@ class AgentState:
             "route_plan": self.route_plan,
             "errand_quote": self.errand_quote,
             "want_errand": self.want_errand,
+            "destinations": self.destinations,
             "conversation_history": self.conversation_history,
         }
 

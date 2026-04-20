@@ -216,6 +216,79 @@ class TestUnsetPreference:
         assert "chicken" not in s.preferred_stores
 
 
+# ────────────────────────── destinations ──────────────────────────
+
+class TestDestinations:
+    def test_add_by_label_hits_landmark_dict(self):
+        s = AgentState()
+        obs = run_tool(s, "add_destination", {"label": "CMU"})
+        assert obs["ok"] is True
+        assert obs["source"] == "landmark"
+        assert len(s.destinations) == 1
+        assert s.destinations[0]["label"] == "CMU"
+        assert 40 < s.destinations[0]["lat"] < 41
+        assert -80.5 < s.destinations[0]["lng"] < -79.5
+
+    def test_add_with_explicit_coords_skips_geocode(self):
+        s = AgentState()
+        obs = run_tool(s, "add_destination", {
+            "label": "Secret Lab",
+            "address": "10 Unknown Rd, Pittsburgh, PA",
+            "lat": 40.4500, "lng": -79.9500,
+        })
+        assert obs["ok"] is True
+        assert obs["source"] == "user_coords"
+        assert s.destinations[0]["address"] == "10 Unknown Rd, Pittsburgh, PA"
+
+    def test_add_unknown_label_without_coords_returns_error(self):
+        s = AgentState()
+        obs = run_tool(s, "add_destination", {"label": "zzz-nonexistent-place-xyz"})
+        assert obs.get("ok") is False
+        assert "error" in obs
+        assert s.destinations == []
+
+    def test_add_twice_deduplicates_by_label(self):
+        s = AgentState()
+        run_tool(s, "add_destination", {"label": "CMU"})
+        run_tool(s, "add_destination", {"label": "cmu"})  # case-insensitive
+        assert len(s.destinations) == 1
+
+    def test_add_invalidates_route_plan(self):
+        s = AgentState()
+        s.route_plan = {"ordered_stops": [{"store_id": "x"}]}
+        s.errand_quote = {"total": 10}
+        run_tool(s, "add_destination", {"label": "CMU"})
+        assert s.route_plan is None
+        assert s.errand_quote is None
+
+    def test_remove_by_label(self):
+        s = AgentState()
+        run_tool(s, "add_destination", {"label": "CMU"})
+        run_tool(s, "add_destination", {"label": "Shadyside"})
+        obs = run_tool(s, "remove_destination", {"label": "cmu"})
+        assert obs["removed"] == 1
+        assert [d["label"] for d in s.destinations] == ["Shadyside"]
+
+    def test_remove_missing_is_noop(self):
+        s = AgentState()
+        obs = run_tool(s, "remove_destination", {"label": "Nowhere"})
+        assert obs["removed"] == 0
+
+    def test_clear_wipes_all(self):
+        s = AgentState()
+        run_tool(s, "add_destination", {"label": "CMU"})
+        run_tool(s, "add_destination", {"label": "Pitt"})
+        obs = run_tool(s, "clear_destinations", {})
+        assert obs["cleared"] == 2
+        assert s.destinations == []
+
+    def test_destinations_appear_in_llm_view(self):
+        s = AgentState()
+        run_tool(s, "add_destination", {"label": "CMU"})
+        view = s.to_llm_view()
+        assert view["destinations"] == [{"label": "CMU", "address": "CMU"}]
+
+
 # ────────────────────────── errand ─────────────────────────────────
 
 class TestSetErrand:

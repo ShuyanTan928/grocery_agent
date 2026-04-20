@@ -83,6 +83,7 @@ You: pick 2
 - **Remove items** — `remove the water` / `drop the ginger` / `no I don't want the water` → `remove_items` prunes from both `raw_items` and the priced plan. Exact-name matches beat loose token matches (`remove orange` keeps `orange juice`); ambiguous targets surface a clarification observation; emptying the list auto-clears the plan.
 - **Justify picks** — `why is the ginger ale on my list?` → `justify_pick` traces a SKU back to its `source_item` ingredient; returns an empty result (not a hallucination) if there's no active plan.
 - **Route planning** — OpenRouteService for real driving matrix + TSP ordering (runs as part of `optimize_and_route`)
+- **Custom route waypoints** — "I also need to swing by CMU on the way home" → `add_destination` geocodes the stop (offline Pittsburgh landmark dict + ORS fallback in live mode) and the next `optimize_and_route` weaves it into the TSP as a mandatory non-shopping stop. Tools: `add_destination`, `remove_destination`, `clear_destinations`.
 - **Errand runner quotes** — `set_errand(true)` then `optimize_and_route` attaches a service fee + tip estimate
 
 ---
@@ -126,7 +127,8 @@ grocery_agent/
 │   ├── recommender.py        # LLM top-K over search candidates
 │   ├── dish_resolver.py      # dishes.json → ingredients + LLM fallback
 │   ├── synonyms.py
-│   ├── route_planner.py      # TSP + ORS distance matrix + directions
+│   ├── route_planner.py      # TSP + ORS distance matrix + haversine fallback
+│   ├── geocode.py            # Pittsburgh landmark dict + ORS geocode fallback
 │   ├── errand_runner.py      # Errand runner fee calculator
 │   ├── refresh_prices.py     # CLI to refresh per-store caches
 │   └── scrapers/             # Trader Joe's, Giant Eagle, Target, Aldi, …
@@ -144,6 +146,7 @@ grocery_agent/
 │   ├── test_dish_resolver.py
 │   ├── test_synonyms.py
 │   ├── test_route_planner.py
+│   ├── test_geocode.py
 │   ├── test_integration.py
 │   └── test_trader_joes_scraper.py
 ├── main.py                    # Minimal interactive chat loop
@@ -471,11 +474,12 @@ Everything the agent remembers lives in one dataclass (`agent/state.py`). The LL
 | `route_plan` | Driving order + distance matrix |
 | `errand_quote` | Service-fee / tip estimate if `want_errand=true` |
 | `want_errand` | Flip via `set_errand` tool |
+| `destinations` | Non-shopping waypoints from `add_destination` (`[{label, address, lat, lng}]`). `plan_route` weaves them into the TSP as mandatory stops. |
 | `conversation_history` | Running list of `{role, text}` entries |
 
 ### Tool registry
 
-Every action is implemented as a `(state, args) -> observation` function in `agent/tools.py` and registered in the `TOOLS` dict. The full list (19 tools):
+Every action is implemented as a `(state, args) -> observation` function in `agent/tools.py` and registered in the `TOOLS` dict. The full list (22 tools):
 
 | Tool | What it does |
 |------|--------------|
@@ -487,6 +491,9 @@ Every action is implemented as a `(state, args) -> observation` function in `age
 | `set_preference` | `kind="avoid"` or `"prefer"` a store for a given item |
 | `unset_preference` | Drop a previously-set preference |
 | `set_errand` | Toggle the `want_errand` flag |
+| `add_destination` | Register a non-shopping waypoint on the route (geocoded via landmark dict / ORS; accepts explicit `lat`/`lng` to skip geocoding) |
+| `remove_destination` | Drop a destination by label (case-insensitive) |
+| `clear_destinations` | Wipe all destinations |
 | `search_products` | Read-only relevance-ranked search over cache |
 | `recommend_products` | LLM top-K over cache candidates, with reasons |
 | `find_at_store` | Cheapest `item` at a specific `store_id` |
@@ -506,6 +513,7 @@ Every action is implemented as a `(state, args) -> observation` function in `age
 - **Pick-by-number skips re-search.** `pick_option` uses the `state.last_options` snapshot directly — this is why `list options for lamb` → `pick 3` can't drift into `Lamb Weston fries`.
 - **Remove uses `source_item` back-pointers.** Every plan entry carries the original ingredient query that produced it. `remove_items` drops plan entries whose `source_item` matches the raw item being removed, so `remove orange` deletes `Navel Oranges` but spares `Simply Orange Juice`.
 - **Auto-clear plan on empty list.** When `remove_items` empties both `raw_items` and `shopping_plan.plan`, the tool resets `state.shopping_plan = None` (and clears route + errand), so the orchestrator sees a fresh canvas next turn.
+- **Destinations invalidate the route, not the plan.** Adding or removing a destination clears `state.route_plan` + `errand_quote` but leaves `shopping_plan` intact — the LLM just needs to re-run `optimize_and_route` to re-solve the TSP with the new waypoint set. Store selection (and therefore price) is unchanged.
 - **Main-flow LLM optimizer (optional, leaf-tool flag).** `USE_LLM_MAIN_OPTIMIZER=true` makes `optimize_shopping_list` resolve each line via `recommend_for_query(..., topk=1)` before `apply_preferred_stores` / `apply_avoid_stores` run.
 - **Dish → ingredients.** `tools/dish_resolver.py` walks `data/dishes.json` → `data/dishes_cache.json` → optional LLM fallback (`USE_LLM_DISH_FALLBACK=true`). Ingredients tagged `pantry: true` (salt, oil, common spices) are filtered out by default; `apply_pending_dish(include_pantry=true)` overrides.
 
@@ -520,6 +528,7 @@ Every action is implemented as a `(state, args) -> observation` function in `age
 - [x] `remove_items` / `justify_pick` with `source_item` back-pointers and auto-clear
 - [x] Refactor to LLM tool-calling loop (retire regex router + state machine)
 - [x] Scripted self-test harness (`scripts/self_test.py`) + per-tool unit tests
+- [x] Custom route waypoints (`add_destination` → TSP re-routes through non-shopping stops)
 - [ ] Provider-native structured outputs (Gemini `response_schema`, OpenAI `tool_choice`) to drop JSON-parsing retries entirely
 - [ ] Live driving matrix everywhere (drop the last mock-data fallbacks)
 - [ ] Fuzzy / embedding-based item name matching

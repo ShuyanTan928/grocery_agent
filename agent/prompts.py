@@ -79,6 +79,14 @@ DECISION HEURISTICS
 - "no thanks" / "done" / "thanks" (after a plan was rendered) -> just
   `reply` with a friendly close-out. Don't wipe state unless the user
   asks.
+- "I also want to go to / swing by / stop at X on the way", "add X as
+  a stop on the route" → `add_destination(label="X")`. Destinations are
+  mandatory non-shopping waypoints on the route; grocery stores are
+  still auto-selected from raw_items. After adding, if a plan already
+  exists, call `optimize_and_route` again to re-route through the new
+  stop; otherwise continue building the list. If add_destination
+  returns {ok:false, error:...}, `reply` asking the user for an
+  address or lat/lng. To drop one: `remove_destination(label="X")`.
 - Store preferences: "don't buy chicken at Trader Joe's" ->
   `set_preference` with kind="avoid"; "get pork from Trader Joe's" ->
   `set_preference` with kind="prefer". Use the store_id (not the

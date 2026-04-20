@@ -201,6 +201,35 @@ SCENARIOS: list[Scenario] = [
         ],
     ),
     Scenario(
+        name="destination-reroutes-plan",
+        purpose="User adds a non-shopping stop (CMU) → add_destination fires, "
+                "optimize_and_route includes it on the route.",
+        turns=[
+            Turn("1 gallon of milk and a dozen eggs",
+                 expect_tool=["add_items", "reply"],
+                 expect_state={"raw_items_min": 2}),
+            Turn("I also need to swing by CMU on the way home, plan it",
+                 expect_tool=["add_destination", "optimize_and_route", "reply"],
+                 expect_state={
+                     "has_plan": True,
+                     "destinations_count": 1,
+                     "destinations_has": "cmu",
+                     "route_has_destination": "cmu",
+                 }),
+        ],
+    ),
+    Scenario(
+        name="unknown-destination-asks-clarification",
+        purpose="Unknown landmark → add_destination returns ok:false; LLM must "
+                "ask for address or coords rather than routing to nowhere.",
+        turns=[
+            Turn("add some milk to my list",
+                 expect_tool=["add_items", "reply"]),
+            Turn("also add my friend's place at zzz-random-spot-42 as a stop",
+                 expect_state={"destinations_count": 0}),
+        ],
+    ),
+    Scenario(
         name="partial-dish-cherry-pick",
         purpose="Partial dish selection. LLM may either use apply_pending_dish(only=[...]) "
                 "or cancel_pending_dish + add_items; both honor user intent.",
@@ -241,6 +270,11 @@ def _state_snapshot(state: AgentState) -> dict:
         "has_plan": bool((plan.get("plan") or {})),
         "plan_stores": sorted((plan.get("plan") or {}).keys()),
         "plan_total": plan.get("total_cost"),
+        "destinations": [d.get("label") for d in state.destinations],
+        "route_stops": [
+            {"kind": s.get("kind"), "name": s.get("name")}
+            for s in ((state.route_plan or {}).get("ordered_stops") or [])
+        ],
     }
 
 
@@ -321,6 +355,22 @@ def _check_turn(
             elif k == "plan_stores_missing":
                 if want in snap["plan_stores"]:
                     anomalies.append(f"state.plan_stores_missing: {want} leaked into plan {snap['plan_stores']}")
+            elif k == "destinations_count":
+                if len(snap["destinations"]) != want:
+                    anomalies.append(
+                        f"state.destinations_count: got {len(snap['destinations'])} != {want} ({snap['destinations']})"
+                    )
+            elif k == "destinations_has":
+                if not any(want.lower() in (d or "").lower() for d in snap["destinations"]):
+                    anomalies.append(
+                        f"state.destinations_has: '{want}' not in {snap['destinations']}"
+                    )
+            elif k == "route_has_destination":
+                dest_names = [s["name"] for s in snap["route_stops"] if s.get("kind") == "destination"]
+                if not any(want.lower() in (n or "").lower() for n in dest_names):
+                    anomalies.append(
+                        f"state.route_has_destination: '{want}' not in route destination stops {dest_names}"
+                    )
 
     reply_l = (reply or "").lower()
     if turn.expect_reply_has:

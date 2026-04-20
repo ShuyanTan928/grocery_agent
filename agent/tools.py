@@ -56,6 +56,7 @@ from tools.product_search import search_products_ranked
 from tools.recommender import recommend_for_query
 from tools.route_planner import plan_route
 from tools.errand_runner import generate_errand_quote
+from tools.geocode import geocode
 
 
 # ────────────────────────── signals ──────────────────────────────────
@@ -331,6 +332,7 @@ def tool_clear_list(state: AgentState, args: dict) -> dict:
     state.preferences = {}
     state.preferred_stores = {}
     state.want_errand = False
+    state.destinations = []
     return {"cleared": True}
 
 
@@ -372,6 +374,110 @@ def tool_unset_preference(state: AgentState, args: dict) -> dict:
 def tool_set_errand(state: AgentState, args: dict) -> dict:
     state.want_errand = bool(args.get("want_errand", True))
     return {"want_errand": state.want_errand}
+
+
+# ---------- destinations (non-shopping route waypoints) ----------
+
+def _normalize_label(label: str) -> str:
+    return " ".join((label or "").split()).lower()
+
+
+def tool_add_destination(state: AgentState, args: dict) -> dict:
+    """Register a non-shopping stop that must appear on the route
+    (e.g. "also swing by CMU on the way home"). If lat/lng are not
+    provided, tries to geocode the label/address."""
+    label = _require_str(args, "label")
+    address = args.get("address")
+    lat = args.get("lat")
+    lng = args.get("lng")
+
+    if lat is not None and lng is not None:
+        try:
+            lat_f = float(lat)
+            lng_f = float(lng)
+        except (TypeError, ValueError) as e:
+            raise ToolError(f"lat/lng must be numeric: {e}")
+        dest = {
+            "label": label,
+            "address": (address or label).strip(),
+            "lat": lat_f,
+            "lng": lng_f,
+            "source": "user_coords",
+        }
+    else:
+        query = (address or label).strip()
+        hit = geocode(query)
+        if hit is None:
+            return {
+                "ok": False,
+                "error": (
+                    f"couldn't geocode '{query}'. Either use a more common "
+                    f"Pittsburgh landmark / neighborhood name, or pass "
+                    f"explicit lat/lng coordinates."
+                ),
+                "hint_landmarks": [
+                    "cmu", "pitt", "downtown", "oakland", "shadyside",
+                    "squirrel hill", "east liberty", "strip district",
+                    "south side", "north shore", "airport",
+                ],
+            }
+        dest = {
+            "label": label,
+            "address": hit.get("address") or query,
+            "lat": hit["lat"],
+            "lng": hit["lng"],
+            "source": hit.get("source", "landmark"),
+        }
+
+    key = _normalize_label(label)
+    state.destinations = [
+        d for d in state.destinations if _normalize_label(d.get("label", "")) != key
+    ]
+    state.destinations.append(dest)
+
+    # Invalidate the route half of the plan so the LLM re-runs
+    # optimize_and_route (or pick_option) to pick up the new waypoint.
+    state.route_plan = None
+    state.errand_quote = None
+
+    return {
+        "ok": True,
+        "label": dest["label"],
+        "address": dest["address"],
+        "lat": dest["lat"],
+        "lng": dest["lng"],
+        "source": dest["source"],
+        "destinations_count": len(state.destinations),
+        "note": "call optimize_and_route again (if a plan existed) to re-route through this stop.",
+    }
+
+
+def tool_remove_destination(state: AgentState, args: dict) -> dict:
+    label = _require_str(args, "label")
+    key = _normalize_label(label)
+    before = len(state.destinations)
+    dropped = [d for d in state.destinations if _normalize_label(d.get("label", "")) == key]
+    state.destinations = [
+        d for d in state.destinations if _normalize_label(d.get("label", "")) != key
+    ]
+    if before and len(state.destinations) != before:
+        # Route will need to be recomputed.
+        state.route_plan = None
+        state.errand_quote = None
+    return {
+        "removed": len(dropped),
+        "removed_labels": [d.get("label") for d in dropped],
+        "destinations_count": len(state.destinations),
+    }
+
+
+def tool_clear_destinations(state: AgentState, args: dict) -> dict:
+    n = len(state.destinations)
+    state.destinations = []
+    if n:
+        state.route_plan = None
+        state.errand_quote = None
+    return {"cleared": n}
 
 
 # ---------- read-only search / recommend ----------
@@ -496,9 +602,13 @@ def tool_pick_option(state: AgentState, args: dict) -> dict:
         "stores_meta": {sid: store_meta} if sid and store_meta else {},
     }
     route = None
-    if plan["store_ids"]:
+    if plan["store_ids"] or state.destinations:
         try:
-            route = plan_route(store_ids=plan["store_ids"], stores_meta=plan["stores_meta"])
+            route = plan_route(
+                store_ids=plan["store_ids"],
+                stores_meta=plan["stores_meta"],
+                extra_waypoints=state.destinations or None,
+            )
         except Exception:
             route = None
     state.shopping_plan = plan
@@ -621,6 +731,7 @@ def tool_optimize_and_route(state: AgentState, args: dict) -> dict:
         route = plan_route(
             store_ids=shopping_plan["store_ids"],
             stores_meta=shopping_plan["stores_meta"],
+            extra_waypoints=state.destinations or None,
         )
     except Exception as e:
         route = None
@@ -774,6 +885,41 @@ TOOLS: dict[str, dict] = {
         "fn": tool_set_errand,
         "description": "Flip the want_errand flag (so optimize_and_route generates a quote).",
         "args": {"want_errand": "bool"},
+    },
+    # destinations (non-shopping route waypoints)
+    "add_destination": {
+        "fn": tool_add_destination,
+        "description": (
+            "Register a non-shopping stop the user wants to include on "
+            "the driving route (e.g. 'I also need to swing by CMU'). If "
+            "lat/lng are omitted the label/address is geocoded via a "
+            "curated Pittsburgh landmark dict (CMU, Pitt, Downtown, "
+            "Squirrel Hill, Shadyside, East Liberty, Strip District, "
+            "Airport, etc.) and an ORS fallback in live mode. On unknown "
+            "places returns {ok:false, error:...} — ask the user for an "
+            "address or explicit coords. Destinations are mandatory stops "
+            "on the next optimize_and_route (or pick_option) call; they "
+            "are NOT shopping stores."
+        ),
+        "args": {
+            "label": "str (short display name, e.g. 'CMU')",
+            "address": "str (optional; falls back to label)",
+            "lat": "float (optional; required with lng to skip geocoding)",
+            "lng": "float (optional; required with lat to skip geocoding)",
+        },
+    },
+    "remove_destination": {
+        "fn": tool_remove_destination,
+        "description": (
+            "Drop a previously-added destination by label (case-insensitive "
+            "exact match on the normalized label)."
+        ),
+        "args": {"label": "str"},
+    },
+    "clear_destinations": {
+        "fn": tool_clear_destinations,
+        "description": "Drop all non-shopping destinations from state.",
+        "args": {},
     },
     # read-only search
     "search_products": {

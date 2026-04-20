@@ -129,3 +129,56 @@ class TestPlanRoute:
         )
         assert result["ors_directions_url"] is not None
         assert "openrouteservice.org" in result["ors_directions_url"]
+
+
+class TestExtraWaypoints:
+    """Destinations (non-shopping stops) get woven into the TSP."""
+
+    CMU = {"label": "CMU", "address": "CMU",
+           "lat": 40.4433, "lng": -79.9436}
+
+    def test_single_store_plus_destination_includes_both(self):
+        result = plan_route(
+            store_ids=["aldi_greenfield"],
+            stores_meta=MOCK_META,
+            extra_waypoints=[self.CMU],
+        )
+        assert len(result["ordered_stops"]) == 2
+        kinds = {s["kind"] for s in result["ordered_stops"]}
+        assert kinds == {"store", "destination"}
+        assert result["destinations_count"] == 1
+
+    def test_destination_only_route_works(self):
+        result = plan_route(
+            store_ids=[],
+            stores_meta={},
+            extra_waypoints=[self.CMU],
+        )
+        assert len(result["ordered_stops"]) == 1
+        assert result["ordered_stops"][0]["kind"] == "destination"
+        assert result["ordered_stops"][0]["name"] == "CMU"
+
+    def test_destination_name_not_suffixed_with_branch(self):
+        result = plan_route(
+            store_ids=["aldi_greenfield"],
+            stores_meta=MOCK_META,
+            extra_waypoints=[self.CMU],
+        )
+        dest_stop = next(s for s in result["ordered_stops"] if s["kind"] == "destination")
+        assert dest_stop["name"] == "CMU"
+        assert "(custom stop)" not in dest_stop["name"]
+
+    def test_multi_store_plus_destination_tsp_totals_are_positive(self):
+        result = plan_route(
+            store_ids=["aldi_greenfield", "trader_joes_shadyside"],
+            stores_meta=MOCK_META,
+            extra_waypoints=[self.CMU],
+        )
+        assert len(result["ordered_stops"]) == 3
+        assert result["total_duration_min"] > 0
+        assert result["total_distance_km"] > 0
+
+    def test_empty_route_with_no_stores_or_extras(self):
+        result = plan_route(store_ids=[], stores_meta={}, extra_waypoints=[])
+        assert result["ordered_stops"] == []
+        assert result["destinations_count"] == 0
