@@ -3,31 +3,37 @@
 # scripts/chat.py
 # Quick-start REPL for the grocery shopping agent.
 #
-# Reads .env from the repo root, builds a ShoppingSession, and drops
-# you into a turn-by-turn prompt. Every CLI flag has an environment
-# variable equivalent; CLI wins when both are set.
+# The agent is now driven by an LLM tool-calling loop (see
+# agent/loop.py); routing decisions are made by the orchestrator LLM
+# looking at AgentState each turn. No more regex side-flows / state
+# machine, so most of the old CLI flags are gone.
 #
 # Examples
 # --------
-#   # minimal — uses .env + defaults (regex router, main LLM model)
+#   # minimal - uses .env + defaults
 #   uv run python scripts/chat.py
 #
-#   # turn on the hybrid LLM intent router with a small model
-#   uv run python scripts/chat.py --use-router --router-model gemini-2.5-flash-lite
+#   # pick a different model (slug conventions differ by provider)
+#   uv run python scripts/chat.py --provider openrouter --model openai/gpt-4o-mini
+#   uv run python scripts/chat.py --provider google     --model gemini-2.5-pro
 #
-#   # dry-run with a canned script (one message per line)
+#   # show per-turn tool-call trace (helpful when debugging weird replies)
+#   uv run python scripts/chat.py --show-trace
+#
+#   # cap max steps per turn (default 8)
+#   uv run python scripts/chat.py --max-steps 4
+#
+#   # replay a canned script (one message per line, # = comment)
 #   uv run python scripts/chat.py --replay demos/canned.txt --verbose
 #
-#   # show per-turn session state after every reply
-#   uv run python scripts/chat.py --dump-state
-#
-# Special REPL commands (typed at the `>` prompt)
-# -----------------------------------------------
+# REPL commands (typed at the `>` prompt)
+# ---------------------------------------
 #   /exit, /quit, :q    Leave the REPL
-#   /reset              Start a fresh ShoppingSession
-#   /state              Print the current session state + parsed items
-#   /plan               Pretty-print the latest shopping_plan (if any)
-#   /flags              Show the runtime config (model, router, flag)
+#   /reset              Start a fresh session
+#   /state              Print the session state (JSON)
+#   /plan               Pretty-print the latest shopping plan
+#   /trace              Show the tool-call trace from the last turn
+#   /flags              Show the runtime config
 #   /help               This help
 # ============================================================
 
@@ -51,6 +57,7 @@ load_dotenv(ROOT / ".env")
 # CLI
 # ──────────────────────────────────────────────────────────────
 
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="chat.py",
@@ -66,79 +73,54 @@ Flag reference
                      env: USE_OPENROUTER=1 | LLM_PROVIDER=openrouter.
                      default: google.
 
---model              Main chat LLM id. Used for list/plan/summary generation.
+--model              Orchestrator LLM id. Used for every tool-choice step.
                      env: LLM_MODEL.
-                     examples: gemma-4-26b-a4b-it (Google),
-                               google/gemma-4-26b-a4b-it (OpenRouter)
+                     recommended defaults:
+                       gemini-2.5-flash              (Google GenAI)
+                       google/gemini-2.5-flash       (OpenRouter)
+                     fallback if JSON parse flakes:
+                       openai/gpt-4o-mini            (OpenRouter)
+                       gemini-2.5-pro                (Google GenAI)
 
---use-router         Turn on the hybrid LLM intent router.
-                     When on: regex rules run first; anything they miss
-                     is classified by a small model into one of
-                     {list_options, recommend, closer, refinement,
-                      new_list, confirm_yes, confirm_no, passthrough}.
-                     env: USE_LLM_INTENT_ROUTER=1.  default: off.
+--max-steps N        Hard cap on tool-calls per user turn (default 8).
+                     env: MAX_AGENT_STEPS.
 
---router-model       Small model for the intent router (faster/cheaper
-                     than the main model). Empty → reuse --model.
-                     env: LLM_ROUTER_MODEL.
-                     picks: google/gemma-3-1b-it, gemini-2.5-flash-lite,
-                            meta-llama/llama-3.2-1b-instruct,
-                            mistralai/ministral-3b, openai/gpt-4.1-nano
-
---router-temp        Sampling temperature for the router only.
-                     env: LLM_ROUTER_TEMPERATURE.  default: 0.0.
-
---llm-list-options / --no-llm-list-options
-                     When on (default), "list options" replies are
-                     LLM-filtered via the recommender pipeline so brand-
-                     name drift (e.g. "lamb" → "Lamb Weston fries") gets
-                     pruned; each call costs one extra LLM roundtrip.
-                     Turn off for deterministic tier-only results.
-                     env: USE_LLM_LIST_OPTIONS.  default: true.
+--show-trace         After each reply, dump the tool-call trace for that
+                     turn (one line per step: tool, args, observation).
 
 --llm-main-optimizer / --no-llm-main-optimizer
-                     When on, optimize_shopping_list runs the recommender
-                     LLM once per line item to pick the best SKU from
-                     cache candidates, then falls back to tier-only search
-                     if the LLM returns nothing. ~N LLM calls per list.
+                     Leaf-tool flag (doesn't affect routing). When on,
+                     optimize_shopping_list consults the recommender LLM
+                     once per line item. ~N extra LLM calls per plan.
                      env: USE_LLM_MAIN_OPTIMIZER.  default: off.
 
---dump-state         After every reply, print the session state
-                     (current state, parsed items, prefs).
+--dump-state         Print the full session state after every reply.
 
---verbose, -v        Log per-turn timing (ms) and the state transition.
+--verbose, -v        Log per-turn latency.
 
---replay FILE        Read messages from FILE (one per line, blank lines
-                     skipped, '#' lines skipped). After the script ends
-                     you drop back into interactive mode unless --exit.
+--replay FILE        Read messages from FILE (one per line, # = comment).
+                     After the script ends you drop back into interactive
+                     mode unless --exit-after-replay is given.
 
---exit-after-replay  Exit immediately after a --replay finishes. Useful
-                     for CI / smoke tests.
+--exit-after-replay  Exit immediately after --replay finishes.
 
 Interactive commands
 --------------------
   /exit, /quit, :q   Leave.
-  /reset             Start a fresh ShoppingSession (clears all state).
-  /state             Show session state + parsed items + prefs.
-  /plan              Pretty-print the last executed shopping_plan.
-  /flags             Show effective runtime config.
+  /reset             Start a fresh session (clears all state).
+  /state             Dump the current session state JSON.
+  /plan              Pretty-print the latest shopping plan.
+  /trace             Show the tool-call trace from the last turn.
+  /flags             Effective runtime config.
   /help              This cheatsheet.
 """,
     )
     p.add_argument("--provider", choices=["google", "openrouter"])
-    p.add_argument("--model", help="Main chat LLM id (LLM_MODEL).")
-    p.add_argument("--use-router", action="store_true",
-                   help="Enable hybrid LLM intent router.")
-    p.add_argument("--router-model",
-                   help="Small model id for the intent router.")
-    p.add_argument("--router-temp", type=float,
-                   help="Router sampling temperature.")
-    p.add_argument("--llm-list-options", dest="llm_list_options",
-                   action="store_true", default=None,
-                   help="Force LLM-filtered list_options on.")
-    p.add_argument("--no-llm-list-options", dest="llm_list_options",
-                   action="store_false",
-                   help="Force LLM-filtered list_options off (tier-only).")
+    p.add_argument("--model", help="Orchestrator LLM id (LLM_MODEL).")
+    p.add_argument("--max-steps", type=int, dest="max_steps",
+                   help="Hard cap on tool-calls per user turn.")
+    p.add_argument("--show-trace", action="store_true",
+                   help="Print the tool-call trace after every reply.")
     p.add_argument("--llm-main-optimizer", dest="llm_main_optimizer",
                    action="store_true", default=None,
                    help="Force LLM per-item picks in optimize_shopping_list on.")
@@ -146,9 +128,9 @@ Interactive commands
                    action="store_false",
                    help="Force LLM main optimizer off (cache tier-only).")
     p.add_argument("--dump-state", action="store_true",
-                   help="Print session state after every reply.")
+                   help="Print full session state after every reply.")
     p.add_argument("-v", "--verbose", action="store_true",
-                   help="Log per-turn latency and state changes.")
+                   help="Log per-turn latency.")
     p.add_argument("--replay", type=Path,
                    help="Replay messages from FILE (one per line).")
     p.add_argument("--exit-after-replay", action="store_true",
@@ -157,9 +139,9 @@ Interactive commands
 
 
 # ──────────────────────────────────────────────────────────────
-# Env-var wiring (done BEFORE importing agent.agent so the settings
-# module reads the right values at import time).
+# Env wiring (runs BEFORE importing agent.agent so settings see it)
 # ──────────────────────────────────────────────────────────────
+
 
 def apply_cli_to_env(args: argparse.Namespace) -> None:
     if args.provider == "openrouter":
@@ -169,16 +151,8 @@ def apply_cli_to_env(args: argparse.Namespace) -> None:
         os.environ.pop("LLM_PROVIDER", None)
     if args.model:
         os.environ["LLM_MODEL"] = args.model
-    if args.use_router:
-        os.environ["USE_LLM_INTENT_ROUTER"] = "1"
-    if args.router_model is not None:
-        os.environ["LLM_ROUTER_MODEL"] = args.router_model
-    if args.router_temp is not None:
-        os.environ["LLM_ROUTER_TEMPERATURE"] = str(args.router_temp)
-    if args.llm_list_options is True:
-        os.environ["USE_LLM_LIST_OPTIONS"] = "1"
-    elif args.llm_list_options is False:
-        os.environ["USE_LLM_LIST_OPTIONS"] = "0"
+    if args.max_steps is not None:
+        os.environ["MAX_AGENT_STEPS"] = str(max(1, args.max_steps))
     if args.llm_main_optimizer is True:
         os.environ["USE_LLM_MAIN_OPTIMIZER"] = "1"
     elif args.llm_main_optimizer is False:
@@ -189,30 +163,21 @@ def apply_cli_to_env(args: argparse.Namespace) -> None:
 # REPL helpers
 # ──────────────────────────────────────────────────────────────
 
+
 def render_state(session) -> str:
-    items = [
-        (i.get("name"), i.get("quantity"), i.get("unit"))
-        for i in (session.raw_items or [])
-    ]
-    return json.dumps({
-        "state": session.state,
-        "clarification_done": session.clarification_done,
-        "items": items,
-        "prefer": session.preferred_stores,
-        "avoid": session.preferences,
-        "has_plan": bool(session.shopping_plan and session.shopping_plan.get("plan")),
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(session.to_full_dict(), ensure_ascii=False, indent=2, default=str)
 
 
 def render_plan(session) -> str:
     plan = session.shopping_plan
     if not plan or not plan.get("plan"):
         return "(no plan yet — finish a shopping list first)"
-    lines = [f"Total: ${plan['total_cost']}   stores: {len(plan['store_ids'])}"]
+    lines = [f"Total: ${plan.get('total_cost')}   stores: {len(plan['store_ids'])}"]
     for sid, items in plan["plan"].items():
         lines.append(f"\n  ── {sid} ──")
         for it in items:
-            lines.append(f"     ${it['price']:>6.2f}   {it['item']}")
+            price = it.get("price") or 0
+            lines.append(f"     ${price:>6.2f}   {it.get('item')}")
     if plan.get("not_found"):
         lines.append(f"\n  Not found: {plan['not_found']}")
     if plan.get("unfulfilled_preferences"):
@@ -223,31 +188,40 @@ def render_plan(session) -> str:
 
 
 def render_flags() -> str:
-    # Import lazily so this reflects whatever env was set for this run.
     from config.settings import (
-        LLM_MODEL, LLM_PROVIDER,
-        LLM_ROUTER_MODEL, LLM_ROUTER_TEMPERATURE,
-        USE_LLM_DISH_FALLBACK,
-        USE_LLM_INTENT_ROUTER, USE_LLM_LIST_OPTIONS, USE_LLM_MAIN_OPTIMIZER,
+        AGENT_LOOP_MODEL, LLM_MODEL, LLM_PROVIDER,
+        MAX_AGENT_STEPS,
+        USE_LLM_DISH_FALLBACK, USE_LLM_MAIN_OPTIMIZER,
     )
     return json.dumps({
         "provider": LLM_PROVIDER,
-        "main_model": LLM_MODEL,
-        "router_enabled": USE_LLM_INTENT_ROUTER,
-        "router_model": LLM_ROUTER_MODEL or "(fallback → main_model)",
-        "router_temperature": LLM_ROUTER_TEMPERATURE,
-        "llm_list_options": USE_LLM_LIST_OPTIONS,
+        "model": LLM_MODEL,
+        "agent_loop_model": AGENT_LOOP_MODEL,
+        "max_agent_steps": MAX_AGENT_STEPS,
         "llm_main_optimizer": USE_LLM_MAIN_OPTIMIZER,
         "llm_dish_fallback": USE_LLM_DISH_FALLBACK,
     }, indent=2)
+
+
+def render_trace(trace: list) -> str:
+    if not trace:
+        return "(no trace — run a message first)"
+    lines = []
+    for e in trace:
+        args_preview = json.dumps(e.args, ensure_ascii=False)[:140]
+        obs_preview = json.dumps(e.obs, ensure_ascii=False)[:200]
+        lines.append(f"  step {e.step}  {e.tool}({args_preview})")
+        lines.append(f"              -> {obs_preview}")
+    return "\n".join(lines)
 
 
 HELP_TEXT = """\
 Commands at the `>` prompt
   /exit, /quit, :q   leave
   /reset             start fresh
-  /state             session state + items + prefs
-  /plan              pretty print the last plan
+  /state             dump full session state JSON
+  /plan              pretty-print the last plan
+  /trace             tool-call trace from the last turn
   /flags             effective runtime config
   /help              this cheatsheet
 
@@ -255,7 +229,7 @@ Anything else is sent to the agent.
 """
 
 
-def handle_command(cmd: str, session, new_session):
+def handle_command(cmd, session, new_session, last_trace):
     c = cmd.strip().lower()
     if c in ("/exit", "/quit", ":q"):
         return "EXIT", None
@@ -265,6 +239,8 @@ def handle_command(cmd: str, session, new_session):
         return "PRINT", render_state(session)
     if c == "/plan":
         return "PRINT", render_plan(session)
+    if c == "/trace":
+        return "PRINT", render_trace(last_trace)
     if c == "/flags":
         return "PRINT", render_flags()
     if c == "/help":
@@ -276,6 +252,7 @@ def handle_command(cmd: str, session, new_session):
 # Main
 # ──────────────────────────────────────────────────────────────
 
+
 def load_replay(path: Path) -> list[str]:
     lines = path.read_text().splitlines()
     return [ln for ln in (s.strip() for s in lines) if ln and not ln.startswith("#")]
@@ -285,13 +262,13 @@ def main() -> int:
     args = build_parser().parse_args()
     apply_cli_to_env(args)
 
-    # Import AFTER apply_cli_to_env so settings pick up the env overrides.
     from agent.agent import ShoppingSession, chat
 
     def new_session():
         return ShoppingSession()
 
     session = new_session()
+    last_trace: list = []
 
     print("Grocery Agent REPL   (type /help for commands, /exit to quit)")
     print(render_flags())
@@ -304,36 +281,39 @@ def main() -> int:
             print(f"[replay] {len(messages)} messages from {args.replay}")
 
     def run_turn(msg: str) -> None:
-        nonlocal session
+        nonlocal session, last_trace
         if not msg:
             return
-        cmd_kind, cmd_payload = handle_command(msg, session, new_session)
+        cmd_kind, cmd_payload = handle_command(msg, session, new_session, last_trace)
         if cmd_kind == "EXIT":
             raise SystemExit(0)
         if cmd_kind == "RESET":
             session = cmd_payload
+            last_trace = []
             print("(session reset)")
             return
         if cmd_kind == "PRINT":
             print(cmd_payload)
             return
 
-        prev_state = session.state
+        trace: list = []
         t0 = time.perf_counter()
         try:
-            reply = chat(session, msg)
-        except Exception as exc:      # noqa: BLE001
+            reply = chat(session, msg, trace=trace)
+        except Exception as exc:  # noqa: BLE001
             print(f"[error] {type(exc).__name__}: {exc}")
             return
         dt_ms = (time.perf_counter() - t0) * 1000
+        last_trace = trace
 
         print(f"Agent : {reply}")
         if args.verbose:
-            print(f"[{dt_ms:>6.0f}ms] {prev_state} → {session.state}")
+            print(f"[{dt_ms:>6.0f}ms, {len(trace)} tool call(s)]")
+        if args.show_trace and trace:
+            print(render_trace(trace))
         if args.dump_state:
             print(render_state(session))
 
-    # Replay phase
     for m in messages:
         print(f"You   : {m}")
         run_turn(m)
@@ -341,7 +321,6 @@ def main() -> int:
     if args.replay and args.exit_after_replay:
         return 0
 
-    # Interactive phase
     try:
         while True:
             try:
