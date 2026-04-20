@@ -5,7 +5,8 @@
 # an optimized buy plan that minimizes total cost.
 #
 # Public entry points used by the agent:
-#   - optimize_shopping_list(items)   — main planner (cache-only)
+#   - optimize_shopping_list(items)   — main planner (cache-only; optional
+#       per-item LLM pick when USE_LLM_MAIN_OPTIMIZER=true)
 #   - find_cheapest_in_cache(query, stores)
 #   - find_at_store_in_cache(query, store_id, stores)
 #   - find_cheapest_in_cache_excluding(query, exclude, stores)
@@ -20,7 +21,7 @@
 import json
 import re
 from pathlib import Path
-from config.settings import MOCK_DATA_DIR, USE_MOCK_DATA
+from config.settings import MOCK_DATA_DIR, USE_LLM_MAIN_OPTIMIZER, USE_MOCK_DATA
 from tools.synonyms import expand_query
 from tools.product_search import search_products_ranked
 
@@ -275,12 +276,59 @@ def _match_category(item_query: str, items_db: dict) -> list | None:
     return None
 
 
+def _llm_pick_for_item(item_query: str, stores: dict) -> dict | None:
+    """Ask the recommender LLM to pick the single best cache SKU for this
+    line item (relevance-first, then value). Returns the same shape as
+    `_cache_entry_to_mock_shape` on success; None if no pick or on error.
+
+    Used only when USE_LLM_MAIN_OPTIMIZER is true; callers should fall
+    back to find_cheapest_in_cache when this returns None."""
+    from tools.recommender import recommend_for_query
+
+    q = _strip_qty_unit(item_query) or (item_query or "").strip()
+    if not q:
+        return None
+    try:
+        result = recommend_for_query(q, topk=1, max_candidates=40)
+    except Exception:
+        return None
+    picks = result.get("picks") or []
+    if not picks:
+        return None
+    c = (picks[0].get("candidate") or {})
+    store_id = (c.get("store_id") or "").strip()
+    price = c.get("price")
+    name = (c.get("name") or "").strip()
+    if not store_id or price is None or not name:
+        return None
+    try:
+        price_f = float(price)
+    except (TypeError, ValueError):
+        return None
+    store_meta = stores.get(store_id) or {}
+    display = store_meta.get("display_name") or c.get("store") or store_id
+    return {
+        "store": display,
+        "location": store_meta.get("address", ""),
+        "item_name": name,
+        "item_price": price_f,
+        "url": c.get("url"),
+        "_source": "llm",
+        "_store_id": store_id,
+    }
+
+
 def optimize_shopping_list(items: list[str]) -> dict:
     """
     Main entry point for the price optimizer tool. Cache-only:
     queries the real scraped per-store caches (data/price_cache/*.json)
     and never touches mock_prices.json. mock data is no longer the
     primary source — we trust the ~21k SKUs from the live scrapers.
+
+    When USE_LLM_MAIN_OPTIMIZER is true, each line item is first passed
+    through the recommender LLM (same candidate list as ``recommend X``);
+    if the LLM yields no valid pick, falls back to the deterministic
+    find_cheapest_in_cache path for that item.
 
     Takes a list of item strings, finds the cheapest store for each,
     and groups them into a per-store buy plan.
@@ -307,7 +355,11 @@ def optimize_shopping_list(items: list[str]) -> dict:
     total_cost = 0.0
 
     for item in items:
-        result = find_cheapest_in_cache(item, stores)
+        result = None
+        if USE_LLM_MAIN_OPTIMIZER:
+            result = _llm_pick_for_item(item, stores)
+        if result is None:
+            result = find_cheapest_in_cache(item, stores)
         if result is None:
             not_found.append(item)
             continue
@@ -319,6 +371,11 @@ def optimize_shopping_list(items: list[str]) -> dict:
 
         plan.setdefault(store_id, []).append({
             "item": result["item_name"],
+            # Back-pointer to the original ingredient query so the agent
+            # can delete SKUs by source (e.g. "remove the orange" when the
+            # SKU was picked as "Navel Oranges") without relying on fuzzy
+            # re-matching against SKU display names.
+            "source_item": item,
             "price": result["item_price"],
             "store_display": result["store"],
             "url": result.get("url"),

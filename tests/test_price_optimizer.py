@@ -129,3 +129,61 @@ class TestOptimizeShoppingList:
                 assert "item" in item        # item_name from price data
                 assert "price" in item       # item_price from price data
                 assert "store_display" in item  # store display name
+
+
+class TestLlmMainOptimizer:
+    """USE_LLM_MAIN_OPTIMIZER: per-item LLM pick with cache fallback."""
+
+    def test_llm_pick_used_when_flag_on(self, monkeypatch):
+        monkeypatch.setattr("tools.price_optimizer.USE_LLM_MAIN_OPTIMIZER", True)
+
+        def fake_recommend(q, **kw):
+            assert q  # stripped query
+            return {
+                "picks": [{
+                    "rank": 1,
+                    "candidate": {
+                        "name": "Test Milk LLM Pick",
+                        "price": 1.11,
+                        "store_id": "aldi_greenfield",
+                        "store": "aldi",
+                        "url": "https://example.test/milk",
+                    },
+                    "reason": "fixture",
+                }],
+            }
+
+        monkeypatch.setattr("tools.recommender.recommend_for_query", fake_recommend)
+        result = optimize_shopping_list(["milk"])
+        assert result["not_found"] == []
+        flat = [it for row in result["plan"].values() for it in row]
+        assert len(flat) == 1
+        assert flat[0]["item"] == "Test Milk LLM Pick"
+        assert flat[0]["price"] == 1.11
+        assert flat[0]["source"] == "llm"
+
+    def test_empty_llm_pick_falls_back_to_cache(self, monkeypatch):
+        monkeypatch.setattr("tools.price_optimizer.USE_LLM_MAIN_OPTIMIZER", True)
+        monkeypatch.setattr(
+            "tools.recommender.recommend_for_query",
+            lambda *a, **k: {"picks": [], "candidates": []},
+        )
+        result = optimize_shopping_list(["milk"])
+        assert result["not_found"] == []
+        flat = [it for row in result["plan"].values() for it in row]
+        assert len(flat) == 1
+        assert flat[0]["price"] == 3.19  # mock-cache Aldi milk
+        assert flat[0]["source"] == "cache"
+
+    def test_llm_exception_falls_back_to_cache(self, monkeypatch):
+        monkeypatch.setattr("tools.price_optimizer.USE_LLM_MAIN_OPTIMIZER", True)
+
+        def boom(*a, **k):
+            raise RuntimeError("no API")
+
+        monkeypatch.setattr("tools.recommender.recommend_for_query", boom)
+        result = optimize_shopping_list(["milk"])
+        assert result["not_found"] == []
+        flat = [it for row in result["plan"].values() for it in row]
+        assert flat[0]["price"] == 3.19
+        assert flat[0]["source"] == "cache"

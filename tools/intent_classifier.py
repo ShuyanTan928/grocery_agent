@@ -35,6 +35,8 @@ ALLOWED_LABELS: tuple[str, ...] = (
     "recommend",      # "what's the best X" / "cheapest X"
     "closer",         # "no thanks" / "bye" / "we're done"
     "refinement",     # modify current list (items/qty/brand/prefs)
+    "remove_item",    # "i don't need water" / "drop the ginger" / "no water"
+    "justify",        # "why did you pick X" / "why is Y in the plan"
     "new_list",       # start a fresh shopping request
     "confirm_yes",    # "yes go ahead" / "looks good"
     "confirm_no",     # pure "no" with no content
@@ -54,6 +56,14 @@ Map the user's latest message to EXACTLY ONE label from this list:
   refinement    - modifying the current in-progress shopping list
                   (e.g. "also add eggs", "make it organic", "2 lbs instead",
                    "no, find the heinz one")
+  remove_item   - dropping ONE OR MORE items from the current list/plan
+                  without adding anything new
+                  (e.g. "i don't need water", "drop the ginger",
+                   "no water please", "remove the milk", "skip the bacon")
+  justify       - asking WHY a specific item was selected or why it's
+                  in the plan (an explanation request, not a change)
+                  (e.g. "why did you provide me sparkling water?",
+                   "why is ginger ale in there?", "explain the orange juice pick")
   new_list      - starting a brand-new shopping request unrelated to any prior plan
                   (e.g. "I need milk, eggs, and bread")
   confirm_yes   - approving the proposed plan without changes
@@ -74,6 +84,7 @@ User's latest message:
 Return STRICT JSON (no prose, no code fences) in this shape:
 {{"label": "<one of the labels above>",
   "query": "<if label is recommend or list_options, the item noun phrase the user asked about; else empty string>",
+  "target": "<if label is remove_item or justify, the item noun phrase the user is referencing (e.g. 'water', 'ginger ale'); else empty string>",
   "confidence": <0.0-1.0>}}
 """
 
@@ -90,7 +101,7 @@ def classify_intent(message: str, session: "ShoppingSession") -> dict:
     context. Always returns a dict with keys: label, query, confidence,
     raw. On failure falls back to {"label": "passthrough"}."""
     if not message or not message.strip():
-        return {"label": "passthrough", "query": "", "confidence": 0.0, "raw": ""}
+        return {"label": "passthrough", "query": "", "target": "", "confidence": 0.0, "raw": ""}
 
     # Imported lazily to avoid a circular import with agent.agent.
     from agent.agent import call_llm
@@ -115,7 +126,7 @@ def classify_intent(message: str, session: "ShoppingSession") -> dict:
             temperature=LLM_ROUTER_TEMPERATURE,
         )
     except Exception:
-        return {"label": "passthrough", "query": "", "confidence": 0.0, "raw": ""}
+        return {"label": "passthrough", "query": "", "target": "", "confidence": 0.0, "raw": ""}
 
     return parse_classifier_reply(raw)
 
@@ -123,7 +134,7 @@ def classify_intent(message: str, session: "ShoppingSession") -> dict:
 def parse_classifier_reply(raw: str) -> dict:
     """Parse the LLM reply into a structured dict. Robust to code-fence
     wrapping, leading prose, or malformed output."""
-    fallback = {"label": "passthrough", "query": "", "confidence": 0.0, "raw": raw or ""}
+    fallback = {"label": "passthrough", "query": "", "target": "", "confidence": 0.0, "raw": raw or ""}
     if not raw:
         return fallback
 
@@ -150,6 +161,7 @@ def parse_classifier_reply(raw: str) -> dict:
     return {
         "label": label,
         "query": str(data.get("query") or "").strip(),
+        "target": str(data.get("target") or "").strip(),
         "confidence": max(0.0, min(1.0, confidence)),
         "raw": raw,
     }

@@ -69,6 +69,22 @@ USE_LLM_LIST_OPTIONS = os.getenv("USE_LLM_LIST_OPTIONS", "true").strip().lower()
     "1", "true", "yes", "on",
 )
 
+# --- Dish → ingredients resolver ---
+# When True, tools.dish_resolver.resolve_dish falls back to an LLM call
+# for dishes that aren't in data/dishes.json (or data/dishes_cache.json).
+# Successful LLM answers are persisted back to dishes_cache.json so
+# subsequent calls are free. Default off — the seed set covers common
+# cases without extra latency/cost.
+USE_LLM_DISH_FALLBACK = _env_truthy("USE_LLM_DISH_FALLBACK")
+
+# --- main-flow price optimizer (per-item LLM) ---
+# When True, optimize_shopping_list asks the recommender LLM to pick ONE
+# best SKU per line item from cache candidates (same pipeline as
+# "recommend X"), then falls back to find_cheapest_in_cache if the LLM
+# returns nothing. Costs ~1 LLM call per shopping-list item — default
+# off for latency/cost.
+USE_LLM_MAIN_OPTIMIZER = _env_truthy("USE_LLM_MAIN_OPTIMIZER")
+
 # --- Routing ---
 # OpenRouteService (free tier: 2000 req/day, no credit card needed)
 # Sign up at https://openrouteservice.org/dev/#/signup

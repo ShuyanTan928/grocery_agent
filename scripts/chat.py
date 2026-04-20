@@ -96,6 +96,13 @@ Flag reference
                      Turn off for deterministic tier-only results.
                      env: USE_LLM_LIST_OPTIONS.  default: true.
 
+--llm-main-optimizer / --no-llm-main-optimizer
+                     When on, optimize_shopping_list runs the recommender
+                     LLM once per line item to pick the best SKU from
+                     cache candidates, then falls back to tier-only search
+                     if the LLM returns nothing. ~N LLM calls per list.
+                     env: USE_LLM_MAIN_OPTIMIZER.  default: off.
+
 --dump-state         After every reply, print the session state
                      (current state, parsed items, prefs).
 
@@ -132,6 +139,12 @@ Interactive commands
     p.add_argument("--no-llm-list-options", dest="llm_list_options",
                    action="store_false",
                    help="Force LLM-filtered list_options off (tier-only).")
+    p.add_argument("--llm-main-optimizer", dest="llm_main_optimizer",
+                   action="store_true", default=None,
+                   help="Force LLM per-item picks in optimize_shopping_list on.")
+    p.add_argument("--no-llm-main-optimizer", dest="llm_main_optimizer",
+                   action="store_false",
+                   help="Force LLM main optimizer off (cache tier-only).")
     p.add_argument("--dump-state", action="store_true",
                    help="Print session state after every reply.")
     p.add_argument("-v", "--verbose", action="store_true",
@@ -166,6 +179,10 @@ def apply_cli_to_env(args: argparse.Namespace) -> None:
         os.environ["USE_LLM_LIST_OPTIONS"] = "1"
     elif args.llm_list_options is False:
         os.environ["USE_LLM_LIST_OPTIONS"] = "0"
+    if args.llm_main_optimizer is True:
+        os.environ["USE_LLM_MAIN_OPTIMIZER"] = "1"
+    elif args.llm_main_optimizer is False:
+        os.environ["USE_LLM_MAIN_OPTIMIZER"] = "0"
 
 
 # ──────────────────────────────────────────────────────────────
@@ -210,7 +227,8 @@ def render_flags() -> str:
     from config.settings import (
         LLM_MODEL, LLM_PROVIDER,
         LLM_ROUTER_MODEL, LLM_ROUTER_TEMPERATURE,
-        USE_LLM_INTENT_ROUTER, USE_LLM_LIST_OPTIONS,
+        USE_LLM_DISH_FALLBACK,
+        USE_LLM_INTENT_ROUTER, USE_LLM_LIST_OPTIONS, USE_LLM_MAIN_OPTIMIZER,
     )
     return json.dumps({
         "provider": LLM_PROVIDER,
@@ -219,6 +237,8 @@ def render_flags() -> str:
         "router_model": LLM_ROUTER_MODEL or "(fallback → main_model)",
         "router_temperature": LLM_ROUTER_TEMPERATURE,
         "llm_list_options": USE_LLM_LIST_OPTIONS,
+        "llm_main_optimizer": USE_LLM_MAIN_OPTIMIZER,
+        "llm_dish_fallback": USE_LLM_DISH_FALLBACK,
     }, indent=2)
 
 

@@ -1,0 +1,941 @@
+{
+  "_schema": {
+    "version": 2,
+    "description": "Seed dish → ingredients dataset. Each ingredient has an optional `quantity`/`unit` and a `pantry` flag (true = staple the user likely already has; excluded from the default shopping list). Quantities target the stated `servings` (default 2).",
+    "servings_default": 2,
+    "pantry_examples": ["salt", "black pepper", "olive oil", "butter", "flour", "sugar", "garlic", "cornstarch", "soy sauce", "sesame oil", "ketchup", "cumin", "oregano", "bay leaf"]
+  },
+  "dishes": {
+    "spaghetti carbonara": {
+      "cuisine": "italian",
+      "servings": 2,
+      "aliases": ["carbonara", "pasta carbonara"],
+      "ingredients": [
+        {"name": "spaghetti", "quantity": 200, "unit": "g"},
+        {"name": "bacon", "quantity": 150, "unit": "g"},
+        {"name": "eggs", "quantity": 2, "unit": null},
+        {"name": "parmesan cheese", "quantity": 50, "unit": "g"},
+        {"name": "garlic", "quantity": 2, "unit": "clove", "pantry": true},
+        {"name": "black pepper", "quantity": null, "unit": null, "pantry": true},
+        {"name": "salt", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "spaghetti bolognese": {
+      "cuisine": "italian",
+      "servings": 2,
+      "aliases": ["bolognese", "spaghetti meat sauce", "meat sauce pasta"],
+      "ingredients": [
+        {"name": "spaghetti", "quantity": 200, "unit": "g"},
+        {"name": "ground beef", "quantity": 300, "unit": "g"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "garlic", "quantity": 2, "unit": "clove", "pantry": true},
+        {"name": "canned tomato sauce", "quantity": 400, "unit": "g"},
+        {"name": "olive oil", "quantity": null, "unit": null, "pantry": true},
+        {"name": "parmesan cheese", "quantity": 30, "unit": "g"}
+      ]
+    },
+    "lasagna": {
+      "cuisine": "italian",
+      "servings": 4,
+      "aliases": ["beef lasagna", "classic lasagna"],
+      "ingredients": [
+        {"name": "lasagna noodles", "quantity": 1, "unit": "box"},
+        {"name": "ground beef", "quantity": 500, "unit": "g"},
+        {"name": "ricotta cheese", "quantity": 450, "unit": "g"},
+        {"name": "mozzarella cheese", "quantity": 250, "unit": "g"},
+        {"name": "parmesan cheese", "quantity": 50, "unit": "g"},
+        {"name": "canned tomato sauce", "quantity": 700, "unit": "g"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "italian seasoning", "quantity": null, "unit": null, "pantry": true},
+        {"name": "garlic", "quantity": 3, "unit": "clove", "pantry": true}
+      ]
+    },
+    "chicken parmesan": {
+      "cuisine": "italian",
+      "servings": 2,
+      "aliases": ["chicken parm"],
+      "ingredients": [
+        {"name": "chicken breast", "quantity": 1, "unit": "lb"},
+        {"name": "breadcrumbs", "quantity": 120, "unit": "g"},
+        {"name": "eggs", "quantity": 1, "unit": null},
+        {"name": "marinara sauce", "quantity": 350, "unit": "g"},
+        {"name": "mozzarella cheese", "quantity": 150, "unit": "g"},
+        {"name": "parmesan cheese", "quantity": 40, "unit": "g"},
+        {"name": "spaghetti", "quantity": 200, "unit": "g"},
+        {"name": "flour", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "fettuccine alfredo": {
+      "cuisine": "italian",
+      "servings": 2,
+      "aliases": ["alfredo pasta", "chicken alfredo"],
+      "ingredients": [
+        {"name": "fettuccine pasta", "quantity": 200, "unit": "g"},
+        {"name": "heavy cream", "quantity": 240, "unit": "ml"},
+        {"name": "parmesan cheese", "quantity": 80, "unit": "g"},
+        {"name": "butter", "quantity": 60, "unit": "g", "pantry": true},
+        {"name": "garlic", "quantity": 2, "unit": "clove", "pantry": true},
+        {"name": "parsley", "quantity": 1, "unit": "bunch"}
+      ]
+    },
+    "margherita pizza": {
+      "cuisine": "italian",
+      "servings": 2,
+      "aliases": ["pizza margherita", "cheese pizza"],
+      "ingredients": [
+        {"name": "pizza dough", "quantity": 1, "unit": "ball"},
+        {"name": "mozzarella cheese", "quantity": 200, "unit": "g"},
+        {"name": "pizza sauce", "quantity": 120, "unit": "g"},
+        {"name": "fresh basil", "quantity": 1, "unit": "bunch"},
+        {"name": "olive oil", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "pesto pasta": {
+      "cuisine": "italian",
+      "servings": 2,
+      "aliases": ["basil pasta", "pesto penne"],
+      "ingredients": [
+        {"name": "penne pasta", "quantity": 200, "unit": "g"},
+        {"name": "pesto sauce", "quantity": 120, "unit": "g"},
+        {"name": "parmesan cheese", "quantity": 30, "unit": "g"},
+        {"name": "cherry tomatoes", "quantity": 150, "unit": "g"}
+      ]
+    },
+    "caesar salad": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": ["chicken caesar salad"],
+      "ingredients": [
+        {"name": "romaine lettuce", "quantity": 1, "unit": "head"},
+        {"name": "caesar dressing", "quantity": 120, "unit": "ml"},
+        {"name": "croutons", "quantity": 80, "unit": "g"},
+        {"name": "parmesan cheese", "quantity": 30, "unit": "g"},
+        {"name": "chicken breast", "quantity": 1, "unit": "lb"}
+      ]
+    },
+    "cobb salad": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "romaine lettuce", "quantity": 1, "unit": "head"},
+        {"name": "chicken breast", "quantity": 0.75, "unit": "lb"},
+        {"name": "bacon", "quantity": 4, "unit": "slice"},
+        {"name": "eggs", "quantity": 2, "unit": null},
+        {"name": "avocado", "quantity": 1, "unit": null},
+        {"name": "blue cheese", "quantity": 60, "unit": "g"},
+        {"name": "cherry tomatoes", "quantity": 150, "unit": "g"},
+        {"name": "ranch dressing", "quantity": 120, "unit": "ml"}
+      ]
+    },
+    "greek salad": {
+      "cuisine": "greek",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "cucumber", "quantity": 1, "unit": null},
+        {"name": "tomatoes", "quantity": 2, "unit": null},
+        {"name": "red onion", "quantity": 0.5, "unit": null},
+        {"name": "green bell pepper", "quantity": 1, "unit": null},
+        {"name": "kalamata olives", "quantity": 100, "unit": "g"},
+        {"name": "feta cheese", "quantity": 120, "unit": "g"},
+        {"name": "olive oil", "quantity": null, "unit": null, "pantry": true},
+        {"name": "oregano", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "cheeseburger": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": ["hamburger", "burger"],
+      "ingredients": [
+        {"name": "ground beef", "quantity": 300, "unit": "g"},
+        {"name": "hamburger buns", "quantity": 2, "unit": null},
+        {"name": "cheddar cheese", "quantity": 60, "unit": "g"},
+        {"name": "lettuce", "quantity": 1, "unit": "head"},
+        {"name": "tomato", "quantity": 1, "unit": null},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "pickles", "quantity": 1, "unit": "jar"},
+        {"name": "ketchup", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "blt sandwich": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": ["blt", "bacon lettuce tomato sandwich"],
+      "ingredients": [
+        {"name": "bread", "quantity": 4, "unit": "slice"},
+        {"name": "bacon", "quantity": 8, "unit": "slice"},
+        {"name": "lettuce", "quantity": 1, "unit": "head"},
+        {"name": "tomato", "quantity": 1, "unit": null},
+        {"name": "mayonnaise", "quantity": 1, "unit": "jar"}
+      ]
+    },
+    "grilled cheese sandwich": {
+      "cuisine": "american",
+      "servings": 1,
+      "aliases": ["grilled cheese"],
+      "ingredients": [
+        {"name": "bread", "quantity": 2, "unit": "slice"},
+        {"name": "cheddar cheese", "quantity": 60, "unit": "g"},
+        {"name": "butter", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "mac and cheese": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": ["macaroni and cheese"],
+      "ingredients": [
+        {"name": "elbow macaroni", "quantity": 250, "unit": "g"},
+        {"name": "cheddar cheese", "quantity": 200, "unit": "g"},
+        {"name": "milk", "quantity": 240, "unit": "ml"},
+        {"name": "butter", "quantity": 30, "unit": "g", "pantry": true},
+        {"name": "flour", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "chili con carne": {
+      "cuisine": "american",
+      "servings": 4,
+      "aliases": ["chili", "beef chili"],
+      "ingredients": [
+        {"name": "ground beef", "quantity": 1, "unit": "lb"},
+        {"name": "canned kidney beans", "quantity": 400, "unit": "g"},
+        {"name": "canned black beans", "quantity": 400, "unit": "g"},
+        {"name": "canned diced tomatoes", "quantity": 400, "unit": "g"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "green bell pepper", "quantity": 1, "unit": null},
+        {"name": "chili powder", "quantity": null, "unit": null},
+        {"name": "tomato paste", "quantity": 1, "unit": "can"},
+        {"name": "cumin", "quantity": null, "unit": null, "pantry": true},
+        {"name": "garlic", "quantity": 3, "unit": "clove", "pantry": true}
+      ]
+    },
+    "beef stew": {
+      "cuisine": "american",
+      "servings": 4,
+      "aliases": ["hearty beef stew"],
+      "ingredients": [
+        {"name": "beef stew meat", "quantity": 1.5, "unit": "lb"},
+        {"name": "potatoes", "quantity": 3, "unit": null},
+        {"name": "carrots", "quantity": 3, "unit": null},
+        {"name": "celery", "quantity": 2, "unit": "stalk"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "beef broth", "quantity": 1, "unit": "carton"},
+        {"name": "tomato paste", "quantity": 1, "unit": "can"},
+        {"name": "flour", "quantity": null, "unit": null, "pantry": true},
+        {"name": "bay leaf", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "meatloaf": {
+      "cuisine": "american",
+      "servings": 4,
+      "aliases": ["classic meatloaf"],
+      "ingredients": [
+        {"name": "ground beef", "quantity": 1, "unit": "lb"},
+        {"name": "breadcrumbs", "quantity": 100, "unit": "g"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "eggs", "quantity": 1, "unit": null},
+        {"name": "ketchup", "quantity": null, "unit": null, "pantry": true},
+        {"name": "worcestershire sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "milk", "quantity": 60, "unit": "ml"}
+      ]
+    },
+    "buffalo wings": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": ["hot wings", "chicken wings"],
+      "ingredients": [
+        {"name": "chicken wings", "quantity": 2, "unit": "lb"},
+        {"name": "hot sauce", "quantity": 1, "unit": "bottle"},
+        {"name": "butter", "quantity": 60, "unit": "g", "pantry": true},
+        {"name": "blue cheese dressing", "quantity": 1, "unit": "bottle"},
+        {"name": "celery", "quantity": 3, "unit": "stalk"}
+      ]
+    },
+    "pancakes": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": ["buttermilk pancakes"],
+      "ingredients": [
+        {"name": "pancake mix", "quantity": 1, "unit": "box"},
+        {"name": "milk", "quantity": 240, "unit": "ml"},
+        {"name": "eggs", "quantity": 1, "unit": null},
+        {"name": "maple syrup", "quantity": 1, "unit": "bottle"},
+        {"name": "butter", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "waffles": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": ["belgian waffles"],
+      "ingredients": [
+        {"name": "waffle mix", "quantity": 1, "unit": "box"},
+        {"name": "milk", "quantity": 240, "unit": "ml"},
+        {"name": "eggs", "quantity": 2, "unit": null},
+        {"name": "butter", "quantity": 30, "unit": "g", "pantry": true},
+        {"name": "maple syrup", "quantity": 1, "unit": "bottle"},
+        {"name": "strawberries", "quantity": 200, "unit": "g"}
+      ]
+    },
+    "scrambled eggs": {
+      "cuisine": "american",
+      "servings": 1,
+      "aliases": [],
+      "ingredients": [
+        {"name": "eggs", "quantity": 3, "unit": null},
+        {"name": "milk", "quantity": 30, "unit": "ml"},
+        {"name": "butter", "quantity": null, "unit": null, "pantry": true},
+        {"name": "salt", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "ham and cheese omelette": {
+      "cuisine": "american",
+      "servings": 1,
+      "aliases": ["omelette", "omelet", "ham cheese omelet"],
+      "ingredients": [
+        {"name": "eggs", "quantity": 3, "unit": null},
+        {"name": "ham", "quantity": 80, "unit": "g"},
+        {"name": "cheddar cheese", "quantity": 50, "unit": "g"},
+        {"name": "butter", "quantity": null, "unit": null, "pantry": true},
+        {"name": "chives", "quantity": 1, "unit": "bunch"}
+      ]
+    },
+    "eggs benedict": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "english muffins", "quantity": 2, "unit": null},
+        {"name": "canadian bacon", "quantity": 150, "unit": "g"},
+        {"name": "eggs", "quantity": 4, "unit": null},
+        {"name": "hollandaise sauce", "quantity": 1, "unit": "packet"},
+        {"name": "white vinegar", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "avocado toast": {
+      "cuisine": "american",
+      "servings": 1,
+      "aliases": [],
+      "ingredients": [
+        {"name": "bread", "quantity": 2, "unit": "slice"},
+        {"name": "avocado", "quantity": 1, "unit": null},
+        {"name": "lemon", "quantity": 1, "unit": null},
+        {"name": "chili flakes", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "french toast": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "bread", "quantity": 4, "unit": "slice"},
+        {"name": "eggs", "quantity": 2, "unit": null},
+        {"name": "milk", "quantity": 120, "unit": "ml"},
+        {"name": "cinnamon", "quantity": null, "unit": null, "pantry": true},
+        {"name": "maple syrup", "quantity": 1, "unit": "bottle"}
+      ]
+    },
+    "breakfast burrito": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "tortillas", "quantity": 2, "unit": null},
+        {"name": "eggs", "quantity": 4, "unit": null},
+        {"name": "bacon", "quantity": 4, "unit": "slice"},
+        {"name": "shredded cheddar cheese", "quantity": 80, "unit": "g"},
+        {"name": "salsa", "quantity": 1, "unit": "jar"},
+        {"name": "avocado", "quantity": 1, "unit": null},
+        {"name": "hash browns", "quantity": 200, "unit": "g"}
+      ]
+    },
+    "fried chicken": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": ["southern fried chicken"],
+      "ingredients": [
+        {"name": "chicken thigh", "quantity": 1, "unit": "lb"},
+        {"name": "buttermilk", "quantity": 240, "unit": "ml"},
+        {"name": "flour", "quantity": 200, "unit": "g", "pantry": true},
+        {"name": "paprika", "quantity": null, "unit": null, "pantry": true},
+        {"name": "garlic powder", "quantity": null, "unit": null, "pantry": true},
+        {"name": "vegetable oil", "quantity": 1, "unit": "bottle"}
+      ]
+    },
+    "mapo tofu": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": ["ma po tofu", "mapo doufu"],
+      "ingredients": [
+        {"name": "soft tofu", "quantity": 450, "unit": "g"},
+        {"name": "ground pork", "quantity": 150, "unit": "g"},
+        {"name": "doubanjiang", "quantity": 2, "unit": "tbsp"},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"},
+        {"name": "garlic", "quantity": 3, "unit": "clove", "pantry": true},
+        {"name": "sichuan peppercorns", "quantity": null, "unit": null},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "cornstarch", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "kung pao chicken": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": ["gong bao chicken"],
+      "ingredients": [
+        {"name": "chicken breast", "quantity": 1, "unit": "lb"},
+        {"name": "peanuts", "quantity": 60, "unit": "g"},
+        {"name": "dried chili peppers", "quantity": 10, "unit": null},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"},
+        {"name": "garlic", "quantity": 3, "unit": "clove", "pantry": true},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "rice vinegar", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "orange chicken": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": ["panda orange chicken"],
+      "ingredients": [
+        {"name": "chicken thigh", "quantity": 1, "unit": "lb"},
+        {"name": "orange juice", "quantity": 240, "unit": "ml"},
+        {"name": "orange", "quantity": 1, "unit": null},
+        {"name": "ginger", "quantity": 1, "unit": "piece"},
+        {"name": "jasmine rice", "quantity": 200, "unit": "g"},
+        {"name": "cornstarch", "quantity": null, "unit": null, "pantry": true},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "sugar", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "sweet and sour chicken": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": ["sweet sour chicken"],
+      "ingredients": [
+        {"name": "chicken breast", "quantity": 1, "unit": "lb"},
+        {"name": "bell pepper", "quantity": 1, "unit": null},
+        {"name": "pineapple chunks", "quantity": 1, "unit": "can"},
+        {"name": "rice vinegar", "quantity": null, "unit": null, "pantry": true},
+        {"name": "ketchup", "quantity": null, "unit": null, "pantry": true},
+        {"name": "sugar", "quantity": null, "unit": null, "pantry": true},
+        {"name": "cornstarch", "quantity": null, "unit": null, "pantry": true},
+        {"name": "jasmine rice", "quantity": 200, "unit": "g"}
+      ]
+    },
+    "general tsos chicken": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": ["general tso chicken", "general tso's chicken"],
+      "ingredients": [
+        {"name": "chicken thigh", "quantity": 1, "unit": "lb"},
+        {"name": "broccoli", "quantity": 1, "unit": "head"},
+        {"name": "dried chili peppers", "quantity": 6, "unit": null},
+        {"name": "ginger", "quantity": 1, "unit": "piece"},
+        {"name": "hoisin sauce", "quantity": 1, "unit": "bottle"},
+        {"name": "cornstarch", "quantity": null, "unit": null, "pantry": true},
+        {"name": "jasmine rice", "quantity": 200, "unit": "g"}
+      ]
+    },
+    "lo mein": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": ["chicken lo mein", "beef lo mein"],
+      "ingredients": [
+        {"name": "lo mein noodles", "quantity": 250, "unit": "g"},
+        {"name": "chicken breast", "quantity": 0.75, "unit": "lb"},
+        {"name": "bell pepper", "quantity": 1, "unit": null},
+        {"name": "carrots", "quantity": 2, "unit": null},
+        {"name": "napa cabbage", "quantity": 0.25, "unit": "head"},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "sesame oil", "quantity": null, "unit": null, "pantry": true},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"}
+      ]
+    },
+    "chow mein": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "chow mein noodles", "quantity": 250, "unit": "g"},
+        {"name": "chicken breast", "quantity": 0.75, "unit": "lb"},
+        {"name": "bean sprouts", "quantity": 150, "unit": "g"},
+        {"name": "cabbage", "quantity": 0.25, "unit": "head"},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "oyster sauce", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "fried rice": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": ["egg fried rice"],
+      "ingredients": [
+        {"name": "jasmine rice", "quantity": 300, "unit": "g"},
+        {"name": "eggs", "quantity": 2, "unit": null},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"},
+        {"name": "frozen peas and carrots", "quantity": 200, "unit": "g"},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "sesame oil", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "tomato and egg stir fry": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": ["tomato egg"],
+      "ingredients": [
+        {"name": "eggs", "quantity": 4, "unit": null},
+        {"name": "tomatoes", "quantity": 3, "unit": null},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"},
+        {"name": "sugar", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "beef and broccoli": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "beef sirloin", "quantity": 1, "unit": "lb"},
+        {"name": "broccoli", "quantity": 1, "unit": "head"},
+        {"name": "garlic", "quantity": 3, "unit": "clove", "pantry": true},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "oyster sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "cornstarch", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "pork dumplings": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": ["dumplings", "jiaozi", "potstickers"],
+      "ingredients": [
+        {"name": "dumpling wrappers", "quantity": 1, "unit": "pack"},
+        {"name": "ground pork", "quantity": 300, "unit": "g"},
+        {"name": "napa cabbage", "quantity": 0.25, "unit": "head"},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"},
+        {"name": "ginger", "quantity": 1, "unit": "piece"},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "sesame oil", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "wonton soup": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "wonton wrappers", "quantity": 1, "unit": "pack"},
+        {"name": "ground pork", "quantity": 200, "unit": "g"},
+        {"name": "shrimp", "quantity": 150, "unit": "g"},
+        {"name": "chicken broth", "quantity": 1, "unit": "carton"},
+        {"name": "bok choy", "quantity": 1, "unit": "bunch"},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "hot and sour soup": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "chicken broth", "quantity": 1, "unit": "carton"},
+        {"name": "soft tofu", "quantity": 200, "unit": "g"},
+        {"name": "mushrooms", "quantity": 150, "unit": "g"},
+        {"name": "bamboo shoots", "quantity": 1, "unit": "can"},
+        {"name": "eggs", "quantity": 1, "unit": null},
+        {"name": "rice vinegar", "quantity": null, "unit": null, "pantry": true},
+        {"name": "white pepper", "quantity": null, "unit": null, "pantry": true},
+        {"name": "cornstarch", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "chicken tikka masala": {
+      "cuisine": "indian",
+      "servings": 2,
+      "aliases": ["tikka masala"],
+      "ingredients": [
+        {"name": "chicken thigh", "quantity": 1, "unit": "lb"},
+        {"name": "yogurt", "quantity": 150, "unit": "g"},
+        {"name": "garam masala", "quantity": null, "unit": null},
+        {"name": "heavy cream", "quantity": 240, "unit": "ml"},
+        {"name": "canned tomato sauce", "quantity": 400, "unit": "g"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "basmati rice", "quantity": 200, "unit": "g"}
+      ]
+    },
+    "butter chicken": {
+      "cuisine": "indian",
+      "servings": 2,
+      "aliases": ["murgh makhani"],
+      "ingredients": [
+        {"name": "chicken thigh", "quantity": 1, "unit": "lb"},
+        {"name": "butter", "quantity": 60, "unit": "g"},
+        {"name": "heavy cream", "quantity": 240, "unit": "ml"},
+        {"name": "canned tomato sauce", "quantity": 400, "unit": "g"},
+        {"name": "garam masala", "quantity": null, "unit": null},
+        {"name": "basmati rice", "quantity": 200, "unit": "g"},
+        {"name": "naan bread", "quantity": 2, "unit": null}
+      ]
+    },
+    "chana masala": {
+      "cuisine": "indian",
+      "servings": 2,
+      "aliases": ["chickpea curry", "chole"],
+      "ingredients": [
+        {"name": "canned chickpeas", "quantity": 400, "unit": "g"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "tomatoes", "quantity": 2, "unit": null},
+        {"name": "ginger", "quantity": 1, "unit": "piece"},
+        {"name": "garam masala", "quantity": null, "unit": null},
+        {"name": "cumin", "quantity": null, "unit": null, "pantry": true},
+        {"name": "basmati rice", "quantity": 200, "unit": "g"},
+        {"name": "cilantro", "quantity": 1, "unit": "bunch"},
+        {"name": "garlic", "quantity": 3, "unit": "clove", "pantry": true}
+      ]
+    },
+    "palak paneer": {
+      "cuisine": "indian",
+      "servings": 2,
+      "aliases": ["saag paneer", "spinach paneer"],
+      "ingredients": [
+        {"name": "paneer cheese", "quantity": 200, "unit": "g"},
+        {"name": "spinach", "quantity": 400, "unit": "g"},
+        {"name": "heavy cream", "quantity": 120, "unit": "ml"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "ginger", "quantity": 1, "unit": "piece"},
+        {"name": "garam masala", "quantity": null, "unit": null},
+        {"name": "basmati rice", "quantity": 200, "unit": "g"}
+      ]
+    },
+    "chicken biryani": {
+      "cuisine": "indian",
+      "servings": 4,
+      "aliases": ["biryani"],
+      "ingredients": [
+        {"name": "basmati rice", "quantity": 400, "unit": "g"},
+        {"name": "chicken thigh", "quantity": 1, "unit": "lb"},
+        {"name": "yogurt", "quantity": 200, "unit": "g"},
+        {"name": "onion", "quantity": 2, "unit": null},
+        {"name": "garam masala", "quantity": null, "unit": null},
+        {"name": "saffron", "quantity": 1, "unit": "pack"},
+        {"name": "mint", "quantity": 1, "unit": "bunch"},
+        {"name": "cilantro", "quantity": 1, "unit": "bunch"}
+      ]
+    },
+    "tacos": {
+      "cuisine": "mexican",
+      "servings": 2,
+      "aliases": ["beef tacos", "ground beef tacos"],
+      "ingredients": [
+        {"name": "ground beef", "quantity": 1, "unit": "lb"},
+        {"name": "taco seasoning", "quantity": 1, "unit": "packet"},
+        {"name": "tortillas", "quantity": 8, "unit": null},
+        {"name": "shredded cheddar cheese", "quantity": 100, "unit": "g"},
+        {"name": "salsa", "quantity": 1, "unit": "jar"},
+        {"name": "sour cream", "quantity": 1, "unit": "cup"},
+        {"name": "lettuce", "quantity": 1, "unit": "head"}
+      ]
+    },
+    "beef burrito": {
+      "cuisine": "mexican",
+      "servings": 2,
+      "aliases": ["burrito"],
+      "ingredients": [
+        {"name": "large tortillas", "quantity": 2, "unit": null},
+        {"name": "ground beef", "quantity": 0.75, "unit": "lb"},
+        {"name": "refried beans", "quantity": 1, "unit": "can"},
+        {"name": "jasmine rice", "quantity": 150, "unit": "g"},
+        {"name": "shredded cheddar cheese", "quantity": 100, "unit": "g"},
+        {"name": "salsa", "quantity": 1, "unit": "jar"},
+        {"name": "sour cream", "quantity": 1, "unit": "cup"},
+        {"name": "lettuce", "quantity": 1, "unit": "head"}
+      ]
+    },
+    "chicken quesadilla": {
+      "cuisine": "mexican",
+      "servings": 2,
+      "aliases": ["quesadilla", "quesadillas"],
+      "ingredients": [
+        {"name": "tortillas", "quantity": 4, "unit": null},
+        {"name": "chicken breast", "quantity": 0.5, "unit": "lb"},
+        {"name": "shredded mexican cheese", "quantity": 200, "unit": "g"},
+        {"name": "bell pepper", "quantity": 1, "unit": null},
+        {"name": "onion", "quantity": 0.5, "unit": null},
+        {"name": "salsa", "quantity": 1, "unit": "jar"},
+        {"name": "sour cream", "quantity": 1, "unit": "cup"}
+      ]
+    },
+    "chicken fajitas": {
+      "cuisine": "mexican",
+      "servings": 2,
+      "aliases": ["fajitas"],
+      "ingredients": [
+        {"name": "chicken breast", "quantity": 1, "unit": "lb"},
+        {"name": "bell pepper", "quantity": 2, "unit": null},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "tortillas", "quantity": 6, "unit": null},
+        {"name": "fajita seasoning", "quantity": 1, "unit": "packet"},
+        {"name": "lime", "quantity": 1, "unit": null},
+        {"name": "sour cream", "quantity": 1, "unit": "cup"},
+        {"name": "salsa", "quantity": 1, "unit": "jar"}
+      ]
+    },
+    "chicken enchiladas": {
+      "cuisine": "mexican",
+      "servings": 3,
+      "aliases": ["enchiladas"],
+      "ingredients": [
+        {"name": "tortillas", "quantity": 8, "unit": null},
+        {"name": "chicken breast", "quantity": 1, "unit": "lb"},
+        {"name": "enchilada sauce", "quantity": 1, "unit": "can"},
+        {"name": "shredded mexican cheese", "quantity": 200, "unit": "g"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "canned black beans", "quantity": 400, "unit": "g"},
+        {"name": "cilantro", "quantity": 1, "unit": "bunch"}
+      ]
+    },
+    "guacamole": {
+      "cuisine": "mexican",
+      "servings": 2,
+      "aliases": ["guac"],
+      "ingredients": [
+        {"name": "avocado", "quantity": 2, "unit": null},
+        {"name": "lime", "quantity": 1, "unit": null},
+        {"name": "onion", "quantity": 0.5, "unit": null},
+        {"name": "cilantro", "quantity": 1, "unit": "bunch"},
+        {"name": "tortilla chips", "quantity": 1, "unit": "bag"},
+        {"name": "salt", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "pad thai": {
+      "cuisine": "thai",
+      "servings": 2,
+      "aliases": ["chicken pad thai"],
+      "ingredients": [
+        {"name": "rice noodles", "quantity": 200, "unit": "g"},
+        {"name": "chicken breast", "quantity": 0.75, "unit": "lb"},
+        {"name": "eggs", "quantity": 2, "unit": null},
+        {"name": "bean sprouts", "quantity": 150, "unit": "g"},
+        {"name": "peanuts", "quantity": 60, "unit": "g"},
+        {"name": "lime", "quantity": 1, "unit": null},
+        {"name": "pad thai sauce", "quantity": 1, "unit": "bottle"}
+      ]
+    },
+    "thai green curry": {
+      "cuisine": "thai",
+      "servings": 2,
+      "aliases": ["green curry", "chicken green curry"],
+      "ingredients": [
+        {"name": "chicken thigh", "quantity": 1, "unit": "lb"},
+        {"name": "green curry paste", "quantity": 1, "unit": "jar"},
+        {"name": "coconut milk", "quantity": 400, "unit": "ml"},
+        {"name": "bell pepper", "quantity": 1, "unit": null},
+        {"name": "bamboo shoots", "quantity": 1, "unit": "can"},
+        {"name": "thai basil", "quantity": 1, "unit": "bunch"},
+        {"name": "fish sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "jasmine rice", "quantity": 200, "unit": "g"}
+      ]
+    },
+    "tom yum soup": {
+      "cuisine": "thai",
+      "servings": 2,
+      "aliases": ["tom yum", "tom yum goong"],
+      "ingredients": [
+        {"name": "shrimp", "quantity": 0.5, "unit": "lb"},
+        {"name": "chicken broth", "quantity": 1, "unit": "carton"},
+        {"name": "lemongrass", "quantity": 2, "unit": "stalk"},
+        {"name": "lime leaves", "quantity": 4, "unit": null},
+        {"name": "galangal", "quantity": 1, "unit": "piece"},
+        {"name": "mushrooms", "quantity": 150, "unit": "g"},
+        {"name": "lime", "quantity": 1, "unit": null},
+        {"name": "fish sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "thai chili peppers", "quantity": 3, "unit": null}
+      ]
+    },
+    "teriyaki chicken": {
+      "cuisine": "japanese",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "chicken thigh", "quantity": 1, "unit": "lb"},
+        {"name": "teriyaki sauce", "quantity": 1, "unit": "bottle"},
+        {"name": "jasmine rice", "quantity": 200, "unit": "g"},
+        {"name": "broccoli", "quantity": 1, "unit": "head"},
+        {"name": "sesame seeds", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "miso soup": {
+      "cuisine": "japanese",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "miso paste", "quantity": 3, "unit": "tbsp"},
+        {"name": "soft tofu", "quantity": 200, "unit": "g"},
+        {"name": "dried seaweed", "quantity": 5, "unit": "g"},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"}
+      ]
+    },
+    "chicken ramen": {
+      "cuisine": "japanese",
+      "servings": 2,
+      "aliases": ["ramen", "tonkotsu ramen"],
+      "ingredients": [
+        {"name": "ramen noodles", "quantity": 2, "unit": "pack"},
+        {"name": "chicken broth", "quantity": 1, "unit": "carton"},
+        {"name": "chicken breast", "quantity": 0.5, "unit": "lb"},
+        {"name": "eggs", "quantity": 2, "unit": null},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"},
+        {"name": "nori", "quantity": 1, "unit": "pack"},
+        {"name": "miso paste", "quantity": 2, "unit": "tbsp"},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "chicken katsu": {
+      "cuisine": "japanese",
+      "servings": 2,
+      "aliases": ["katsu", "katsu curry"],
+      "ingredients": [
+        {"name": "chicken breast", "quantity": 1, "unit": "lb"},
+        {"name": "panko breadcrumbs", "quantity": 150, "unit": "g"},
+        {"name": "eggs", "quantity": 1, "unit": null},
+        {"name": "tonkatsu sauce", "quantity": 1, "unit": "bottle"},
+        {"name": "cabbage", "quantity": 0.25, "unit": "head"},
+        {"name": "jasmine rice", "quantity": 200, "unit": "g"},
+        {"name": "flour", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "bibimbap": {
+      "cuisine": "korean",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "short-grain rice", "quantity": 300, "unit": "g"},
+        {"name": "beef sirloin", "quantity": 0.5, "unit": "lb"},
+        {"name": "carrots", "quantity": 2, "unit": null},
+        {"name": "zucchini", "quantity": 1, "unit": null},
+        {"name": "spinach", "quantity": 200, "unit": "g"},
+        {"name": "bean sprouts", "quantity": 150, "unit": "g"},
+        {"name": "eggs", "quantity": 2, "unit": null},
+        {"name": "gochujang", "quantity": 1, "unit": "jar"},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "sesame oil", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "beef bulgogi": {
+      "cuisine": "korean",
+      "servings": 2,
+      "aliases": ["bulgogi"],
+      "ingredients": [
+        {"name": "beef sirloin", "quantity": 1, "unit": "lb"},
+        {"name": "pear", "quantity": 0.5, "unit": null},
+        {"name": "garlic", "quantity": 4, "unit": "clove", "pantry": true},
+        {"name": "scallions", "quantity": 1, "unit": "bunch"},
+        {"name": "jasmine rice", "quantity": 200, "unit": "g"},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "sesame oil", "quantity": null, "unit": null, "pantry": true},
+        {"name": "sugar", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "beef pho": {
+      "cuisine": "vietnamese",
+      "servings": 2,
+      "aliases": ["pho", "pho bo"],
+      "ingredients": [
+        {"name": "rice noodles", "quantity": 200, "unit": "g"},
+        {"name": "beef broth", "quantity": 1, "unit": "carton"},
+        {"name": "beef sirloin", "quantity": 0.5, "unit": "lb"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "ginger", "quantity": 1, "unit": "piece"},
+        {"name": "star anise", "quantity": 3, "unit": null},
+        {"name": "cilantro", "quantity": 1, "unit": "bunch"},
+        {"name": "bean sprouts", "quantity": 150, "unit": "g"},
+        {"name": "lime", "quantity": 1, "unit": null},
+        {"name": "thai basil", "quantity": 1, "unit": "bunch"}
+      ]
+    },
+    "banh mi": {
+      "cuisine": "vietnamese",
+      "servings": 2,
+      "aliases": ["vietnamese sandwich", "pork banh mi"],
+      "ingredients": [
+        {"name": "baguette", "quantity": 1, "unit": null},
+        {"name": "pork tenderloin", "quantity": 0.5, "unit": "lb"},
+        {"name": "carrots", "quantity": 2, "unit": null},
+        {"name": "daikon radish", "quantity": 1, "unit": null},
+        {"name": "cucumber", "quantity": 1, "unit": null},
+        {"name": "cilantro", "quantity": 1, "unit": "bunch"},
+        {"name": "jalapeno", "quantity": 1, "unit": null},
+        {"name": "mayonnaise", "quantity": 1, "unit": "jar"},
+        {"name": "rice vinegar", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "hummus": {
+      "cuisine": "middle eastern",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "canned chickpeas", "quantity": 400, "unit": "g"},
+        {"name": "tahini", "quantity": 1, "unit": "jar"},
+        {"name": "lemon", "quantity": 1, "unit": null},
+        {"name": "pita bread", "quantity": 4, "unit": null},
+        {"name": "olive oil", "quantity": null, "unit": null, "pantry": true},
+        {"name": "garlic", "quantity": 2, "unit": "clove", "pantry": true},
+        {"name": "paprika", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "falafel": {
+      "cuisine": "middle eastern",
+      "servings": 2,
+      "aliases": ["falafel wrap"],
+      "ingredients": [
+        {"name": "canned chickpeas", "quantity": 400, "unit": "g"},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "cilantro", "quantity": 1, "unit": "bunch"},
+        {"name": "parsley", "quantity": 1, "unit": "bunch"},
+        {"name": "pita bread", "quantity": 4, "unit": null},
+        {"name": "tahini", "quantity": 1, "unit": "jar"},
+        {"name": "lemon", "quantity": 1, "unit": null},
+        {"name": "cumin", "quantity": null, "unit": null, "pantry": true},
+        {"name": "flour", "quantity": null, "unit": null, "pantry": true}
+      ]
+    },
+    "shakshuka": {
+      "cuisine": "middle eastern",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "eggs", "quantity": 4, "unit": null},
+        {"name": "canned diced tomatoes", "quantity": 400, "unit": "g"},
+        {"name": "red bell pepper", "quantity": 1, "unit": null},
+        {"name": "onion", "quantity": 1, "unit": null},
+        {"name": "paprika", "quantity": null, "unit": null, "pantry": true},
+        {"name": "cumin", "quantity": null, "unit": null, "pantry": true},
+        {"name": "bread", "quantity": 4, "unit": "slice"},
+        {"name": "feta cheese", "quantity": 60, "unit": "g"}
+      ]
+    },
+    "baked salmon": {
+      "cuisine": "american",
+      "servings": 2,
+      "aliases": ["salmon", "lemon salmon"],
+      "ingredients": [
+        {"name": "salmon fillet", "quantity": 1, "unit": "lb"},
+        {"name": "lemon", "quantity": 1, "unit": null},
+        {"name": "asparagus", "quantity": 1, "unit": "bunch"},
+        {"name": "jasmine rice", "quantity": 200, "unit": "g"},
+        {"name": "olive oil", "quantity": null, "unit": null, "pantry": true},
+        {"name": "garlic", "quantity": 2, "unit": "clove", "pantry": true}
+      ]
+    },
+    "shrimp stir fry": {
+      "cuisine": "chinese",
+      "servings": 2,
+      "aliases": [],
+      "ingredients": [
+        {"name": "shrimp", "quantity": 1, "unit": "lb"},
+        {"name": "bell pepper", "quantity": 1, "unit": null},
+        {"name": "broccoli", "quantity": 1, "unit": "head"},
+        {"name": "carrots", "quantity": 2, "unit": null},
+        {"name": "ginger", "quantity": 1, "unit": "piece"},
+        {"name": "jasmine rice", "quantity": 200, "unit": "g"},
+        {"name": "soy sauce", "quantity": null, "unit": null, "pantry": true},
+        {"name": "sesame oil", "quantity": null, "unit": null, "pantry": true},
+        {"name": "garlic", "quantity": 3, "unit": "clove", "pantry": true}
+      ]
+    }
+  }
+}
