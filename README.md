@@ -84,7 +84,9 @@ You: pick 2
 - **Justify picks** — `why is the ginger ale on my list?` → `justify_pick` traces a SKU back to its `source_item` ingredient; returns an empty result (not a hallucination) if there's no active plan.
 - **Route planning** — OpenRouteService for real driving matrix + TSP ordering (runs as part of `optimize_and_route`)
 - **Custom route waypoints** — "I also need to swing by CMU on the way home" → `add_destination` geocodes the stop (offline Pittsburgh landmark dict + ORS fallback in live mode) and the next `optimize_and_route` weaves it into the TSP as a mandatory non-shopping stop. Tools: `add_destination`, `remove_destination`, `clear_destinations`.
+- **User-configurable home** — "my home is in Oakland" / "I live at 419 Melwood" → `set_home` resolves the location through the same landmark-dict + ORS geocoder (or accepts explicit `lat`/`lng`). Until set, `plan_route` anchors at the default from `config/settings.py`. Tools: `set_home`, `clear_home`.
 - **Errand runner quotes** — `set_errand(true)` then `optimize_and_route` attaches a service fee + tip estimate
+- **Web UI** — FastAPI (`server.py`) + a single-file frontend (`web/index.html`) with chat, live shopping list, per-stop item breakdown, and an optional Leaflet map rendering the route (numbered markers, item popups, links to ORS turn-by-turn). Run `uv run uvicorn server:app --reload` and open <http://localhost:8000>.
 
 ---
 
@@ -149,6 +151,9 @@ grocery_agent/
 │   ├── test_geocode.py
 │   ├── test_integration.py
 │   └── test_trader_joes_scraper.py
+├── server.py                  # FastAPI wrapper around agent.loop.chat()
+├── web/
+│   └── index.html             # Single-page frontend (chat + list + stops + Leaflet map)
 ├── main.py                    # Minimal interactive chat loop
 ├── test_api.py                # Standalone Google API key tester
 ├── test_ors.py                # Standalone ORS API key tester
@@ -264,7 +269,11 @@ uv run python -m tools.refresh_prices --help
 ## Running
 
 ```bash
-# Minimal interactive chat
+# Web UI — chat + shopping list + per-stop breakdown + route map
+uv run uvicorn server:app --reload --port 8000
+# → open http://localhost:8000
+
+# Minimal interactive chat (CLI)
 uv run python main.py
 
 # Developer REPL (flags, /state, /plan, /trace, /history, replay)
@@ -279,6 +288,26 @@ uv run python scripts/chat.py --max-steps 12
 # Run all tests
 uv run pytest -v
 ```
+
+### Web UI
+
+`server.py` is a thin FastAPI wrapper around `agent.loop.chat()`; the frontend lives in `web/index.html` (single file, Leaflet via CDN, no build step). Sessions are kept in memory keyed by a UUID the browser stores in `localStorage`.
+
+Panels:
+- **Left** — chat log + quick-prompt chips + Reset.
+- **Right top** — `raw_items` pills (ambiguous rows are yellow) and the running total.
+- **Right middle** — Route & stops. Each card shows the stop index, address, per-item SKUs + prices (clickable to the scraped URL), and inter-stop drive time. Destinations are green-accented; stores are blue-accented.
+- **Right bottom** — Leaflet map (optional, appears once a route exists). Home is `H`, each stop is numbered; popups show the items at that stop. "Open turn-by-turn ↗" links out to the ORS directions deep-link.
+
+API:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/chat` | `{session_id, message}` → `{reply, state}`. Drives `agent.loop.chat()`. |
+| `GET /api/state?session_id=…` | Current `AgentState` flattened for the frontend. |
+| `POST /api/reset` | Wipe that session's state. |
+| `GET /api/new-session` | Mint a UUID server-side (optional — client can also generate one). |
+| `GET /` | Serves `web/index.html`. |
 
 ### Chat commands
 
@@ -475,11 +504,12 @@ Everything the agent remembers lives in one dataclass (`agent/state.py`). The LL
 | `errand_quote` | Service-fee / tip estimate if `want_errand=true` |
 | `want_errand` | Flip via `set_errand` tool |
 | `destinations` | Non-shopping waypoints from `add_destination` (`[{label, address, lat, lng}]`). `plan_route` weaves them into the TSP as mandatory stops. |
+| `home` | Optional user-configured home anchor (`{label, address, lat, lng, source}`) set via `set_home`. When `None`, `plan_route` falls back to `config.HOME_*`. |
 | `conversation_history` | Running list of `{role, text}` entries |
 
 ### Tool registry
 
-Every action is implemented as a `(state, args) -> observation` function in `agent/tools.py` and registered in the `TOOLS` dict. The full list (22 tools):
+Every action is implemented as a `(state, args) -> observation` function in `agent/tools.py` and registered in the `TOOLS` dict. The full list (24 tools):
 
 | Tool | What it does |
 |------|--------------|
@@ -494,6 +524,8 @@ Every action is implemented as a `(state, args) -> observation` function in `age
 | `add_destination` | Register a non-shopping waypoint on the route (geocoded via landmark dict / ORS; accepts explicit `lat`/`lng` to skip geocoding) |
 | `remove_destination` | Drop a destination by label (case-insensitive) |
 | `clear_destinations` | Wipe all destinations |
+| `set_home` | Set the route's home anchor. Accepts a free-form `query` (goes through landmark dict + ORS), or explicit `lat`+`lng`. Returns `{ok:false,...}` if unresolvable — LLM then asks user for a neighborhood name. Invalidates `route_plan` + `errand_quote`. |
+| `clear_home` | Revert to the default home from `config/settings.py` |
 | `search_products` | Read-only relevance-ranked search over cache |
 | `recommend_products` | LLM top-K over cache candidates, with reasons |
 | `find_at_store` | Cheapest `item` at a specific `store_id` |
@@ -529,6 +561,7 @@ Every action is implemented as a `(state, args) -> observation` function in `age
 - [x] Refactor to LLM tool-calling loop (retire regex router + state machine)
 - [x] Scripted self-test harness (`scripts/self_test.py`) + per-tool unit tests
 - [x] Custom route waypoints (`add_destination` → TSP re-routes through non-shopping stops)
+- [x] User-configurable home anchor (`set_home` → `plan_route` uses it as route start/end and web map H marker)
 - [ ] Provider-native structured outputs (Gemini `response_schema`, OpenAI `tool_choice`) to drop JSON-parsing retries entirely
 - [ ] Live driving matrix everywhere (drop the last mock-data fallbacks)
 - [ ] Fuzzy / embedding-based item name matching

@@ -182,3 +182,55 @@ class TestExtraWaypoints:
         result = plan_route(store_ids=[], stores_meta={}, extra_waypoints=[])
         assert result["ordered_stops"] == []
         assert result["destinations_count"] == 0
+
+
+class TestHomeOverride:
+    """plan_route supports runtime home anchoring (state.home)."""
+
+    OAKLAND_HOME = {"label": "oakland", "address": "Oakland, Pittsburgh",
+                    "lat": 40.4412, "lng": -79.9536}
+
+    def test_default_home_surfaces_in_result(self):
+        # No override → falls back to config.HOME_*
+        result = plan_route(
+            store_ids=["aldi_greenfield"], stores_meta=MOCK_META,
+        )
+        home = result["home"]
+        assert isinstance(home["lat"], float)
+        assert isinstance(home["lng"], float)
+        assert home["address"]  # populated from config default
+
+    def test_override_home_used_in_result(self):
+        result = plan_route(
+            store_ids=["aldi_greenfield"], stores_meta=MOCK_META,
+            home_override=self.OAKLAND_HOME,
+        )
+        assert result["home"]["lat"] == 40.4412
+        assert result["home"]["lng"] == -79.9536
+        assert result["home"]["label"] == "oakland"
+
+    def test_override_home_propagates_into_ors_url(self):
+        result = plan_route(
+            store_ids=["aldi_greenfield", "trader_joes_shadyside"],
+            stores_meta=MOCK_META,
+            home_override=self.OAKLAND_HOME,
+        )
+        url = result.get("ors_directions_url") or ""
+        assert "n1=40.4412" in url
+        assert "n2=-79.9536" in url
+
+    def test_home_present_on_empty_route(self):
+        result = plan_route(
+            store_ids=[], stores_meta={},
+            home_override=self.OAKLAND_HOME,
+        )
+        assert result["ordered_stops"] == []
+        assert result["home"]["lat"] == 40.4412
+
+    def test_home_present_on_single_stop_short_circuit(self):
+        result = plan_route(
+            store_ids=["aldi_greenfield"], stores_meta=MOCK_META,
+            home_override=self.OAKLAND_HOME,
+        )
+        assert len(result["ordered_stops"]) == 1
+        assert result["home"]["lng"] == -79.9536

@@ -471,6 +471,87 @@ def tool_remove_destination(state: AgentState, args: dict) -> dict:
     }
 
 
+def tool_set_home(state: AgentState, args: dict) -> dict:
+    """Set the user's home address (route anchor). Accepts either an
+    explicit lat/lng pair, or a free-form query that we route through
+    the same geocoder used for destinations. Invalidates route_plan and
+    errand_quote so the next optimize_and_route / pick_option rebuilds
+    from the new anchor."""
+    query = (
+        args.get("query")
+        or args.get("address")
+        or args.get("label")
+        or ""
+    )
+    query = query.strip() if isinstance(query, str) else ""
+    lat = args.get("lat")
+    lng = args.get("lng")
+
+    if lat is not None and lng is not None:
+        try:
+            lat_f = float(lat)
+            lng_f = float(lng)
+        except (TypeError, ValueError) as e:
+            raise ToolError(f"lat/lng must be numeric: {e}")
+        address = (args.get("address") or query or "Home").strip()
+        home = {
+            "label": query or "Home",
+            "address": address,
+            "lat": lat_f,
+            "lng": lng_f,
+            "source": "user_coords",
+        }
+    else:
+        if not query:
+            raise ToolError(
+                "set_home requires either `query`/`address` or a lat+lng pair"
+            )
+        hit = geocode(query)
+        if hit is None:
+            return {
+                "ok": False,
+                "error": (
+                    f"couldn't geocode '{query}'. Use a common Pittsburgh "
+                    f"neighborhood or landmark name, or pass explicit "
+                    f"lat/lng coordinates."
+                ),
+                "hint_landmarks": [
+                    "oakland", "shadyside", "squirrel hill", "east liberty",
+                    "strip district", "downtown", "south side", "north shore",
+                    "lawrenceville", "bloomfield", "highland park",
+                    "cmu", "pitt",
+                ],
+            }
+        home = {
+            "label": query,
+            "address": hit.get("address") or query,
+            "lat": hit["lat"],
+            "lng": hit["lng"],
+            "source": hit.get("source", "landmark"),
+        }
+
+    state.home = home
+    state.route_plan = None
+    state.errand_quote = None
+    return {
+        "ok": True,
+        "home": home,
+        "note": (
+            "call optimize_and_route (or pick_option) again to rebuild "
+            "the route from this home."
+        ),
+    }
+
+
+def tool_clear_home(state: AgentState, args: dict) -> dict:
+    had = state.home is not None
+    state.home = None
+    if had:
+        state.route_plan = None
+        state.errand_quote = None
+    return {"cleared": had}
+
+
 def tool_clear_destinations(state: AgentState, args: dict) -> dict:
     n = len(state.destinations)
     state.destinations = []
@@ -608,6 +689,7 @@ def tool_pick_option(state: AgentState, args: dict) -> dict:
                 store_ids=plan["store_ids"],
                 stores_meta=plan["stores_meta"],
                 extra_waypoints=state.destinations or None,
+                home_override=state.home,
             )
         except Exception:
             route = None
@@ -732,6 +814,7 @@ def tool_optimize_and_route(state: AgentState, args: dict) -> dict:
             store_ids=shopping_plan["store_ids"],
             stores_meta=shopping_plan["stores_meta"],
             extra_waypoints=state.destinations or None,
+            home_override=state.home,
         )
     except Exception as e:
         route = None
@@ -919,6 +1002,39 @@ TOOLS: dict[str, dict] = {
     "clear_destinations": {
         "fn": tool_clear_destinations,
         "description": "Drop all non-shopping destinations from state.",
+        "args": {},
+    },
+    # home anchor (route start / end)
+    "set_home": {
+        "fn": tool_set_home,
+        "description": (
+            "Set the user's home address — the route anchor plan_route "
+            "starts and ends at, and the H marker on the web map. Accepts "
+            "a free-form `query` (routed through the same Pittsburgh "
+            "landmark dict + ORS fallback as add_destination) OR an "
+            "explicit `lat`+`lng` pair. In mock / offline mode a street "
+            "address like '419 Melwood Ave' will usually NOT resolve — "
+            "prefer a neighborhood or landmark name (oakland, shadyside, "
+            "squirrel hill, east liberty, strip district, downtown, cmu, "
+            "pitt, ...) or pass lat/lng explicitly. On failure returns "
+            "{ok:false, error:...} — ask the user to rephrase. On success "
+            "invalidates route_plan + errand_quote, so call "
+            "optimize_and_route (or pick_option) again to rebuild the "
+            "route from the new home."
+        ),
+        "args": {
+            "query": "str (optional; e.g. 'oakland' or '419 melwood ave')",
+            "address": "str (optional; friendlier display text)",
+            "lat": "float (optional; required together with lng)",
+            "lng": "float (optional; required together with lat)",
+        },
+    },
+    "clear_home": {
+        "fn": tool_clear_home,
+        "description": (
+            "Reset home to the default configured in config/settings.py. "
+            "Invalidates the route so it rebuilds from the default anchor."
+        ),
         "args": {},
     },
     # read-only search

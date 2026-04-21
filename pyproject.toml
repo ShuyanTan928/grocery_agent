@@ -13,6 +13,8 @@ dependencies = [
     "pytest-mock>=3.14.0",          # Mocking in tests
     "python-dotenv>=1.0.0",          # Load .env for API keys
     "openai>=1.0.0",
+    "fastapi>=0.136.0",
+    "uvicorn[standard]>=0.44.0",
 ]
 
 [tool.pytest.ini_options]

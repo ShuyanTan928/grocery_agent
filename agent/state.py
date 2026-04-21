@@ -38,6 +38,11 @@ class AgentState:
     # alongside the stores so the TSP treats them as mandatory stops.
     destinations: list[dict] = field(default_factory=list)
 
+    # Optional user-configured home address (route start/end anchor). When
+    # None, plan_route falls back to HOME_* constants from config/settings.
+    # Shape matches geocode() output: {label, address, lat, lng, source}.
+    home: dict | None = None
+
     conversation_history: list[dict] = field(default_factory=list)
 
     # Legacy attributes — kept so back-compat tests and any caller that
@@ -112,6 +117,14 @@ class AgentState:
                 {"label": d.get("label"), "address": d.get("address")}
                 for d in self.destinations
             ],
+            "home": (
+                {
+                    "label": self.home.get("label"),
+                    "address": self.home.get("address"),
+                }
+                if self.home
+                else None
+            ),
         }
 
     def to_full_dict(self) -> dict:
@@ -127,6 +140,7 @@ class AgentState:
             "errand_quote": self.errand_quote,
             "want_errand": self.want_errand,
             "destinations": self.destinations,
+            "home": self.home,
             "conversation_history": self.conversation_history,
         }
 

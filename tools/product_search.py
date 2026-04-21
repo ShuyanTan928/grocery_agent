@@ -148,6 +148,35 @@ def search_products(
     return matches
 
 
+# Words that, when present in a SKU name, strongly signal the SKU is a
+# prepared / derivative product (candy, meal kit, snack, beverage, …)
+# rather than the raw ingredient a shopper typically means. We demote the
+# SKU's relevance tier when one of these appears in the SKU name but NOT
+# in the query — so "eggs" no longer ties "Marshmallow Eggs" with real
+# eggs, and "bacon" no longer pulls in frozen burritos that merely list
+# bacon as an ingredient.
+_PREPARED_CATEGORY_TOKENS: frozenset[str] = frozenset({
+    "marshmallow", "chocolate", "candy", "cookie", "cookies",
+    "cake", "cakes", "pie", "pies", "truffle", "truffles", "fudge",
+    "pancake", "pancakes", "waffle", "waffles", "cereal", "donut", "donuts",
+    "ravioli", "lasagna", "pizza", "burrito", "burritos",
+    "taco", "tacos", "enchilada", "enchiladas", "calzone",
+    "nuggets", "meatballs", "dumpling", "dumplings", "wonton", "wontons",
+    "salad", "soup", "stew", "bowl", "bowls", "kit",
+    "chips", "pretzel", "pretzels", "cracker", "crackers",
+    "popcorn", "jerky", "snack", "snacks", "granola", "bits",
+    "juice", "soda", "cola", "nog", "smoothie", "shake", "latte",
+    "yogurt", "pudding", "icecream",
+    "jam", "jelly", "marmalade", "syrup", "relish", "salsa",
+    "sauce", "dressing", "spread", "dip",
+    "stuffed", "breaded", "battered", "crusted", "flavored", "flavor",
+})
+
+
+def _contains_whole_word(name_lower: str, token: str) -> bool:
+    return bool(re.search(rf"\b{re.escape(token)}\b", name_lower))
+
+
 def _relevance_tier(query: str, item_name: str) -> int:
     """Classify how relevant an item is to the query.
 
@@ -157,6 +186,12 @@ def _relevance_tier(query: str, item_name: str) -> int:
         "pumpkin spice creamy yogurt", but "egg" still matches "eggs")
     2 = looser match (only via synonym expansion or partial substring)
 
+    Category-mismatch demotion: if the SKU name contains a "prepared /
+    derivative" category word (see _PREPARED_CATEGORY_TOKENS) that is NOT
+    also present in the query, the computed tier is demoted by one. That
+    keeps raw-ingredient SKUs strictly ahead of candy / meal-kit / frozen
+    SKUs that happen to share a keyword with the query.
+
     Lower is better.
     """
     q = (query or "").strip().lower()
@@ -164,13 +199,23 @@ def _relevance_tier(query: str, item_name: str) -> int:
     if not q or not name:
         return 2
     if q in name:
-        return 0
-    tokens = [t for t in re.split(r"\s+", q) if t]
-    if tokens and all(
-        re.search(rf"\b{re.escape(tok)}s?\b", name) for tok in tokens
-    ):
-        return 1
-    return 2
+        base = 0
+    else:
+        tokens = [t for t in re.split(r"\s+", q) if t]
+        if tokens and all(
+            re.search(rf"\b{re.escape(tok)}s?\b", name) for tok in tokens
+        ):
+            base = 1
+        else:
+            return 2
+
+    query_tokens = {t for t in re.split(r"\W+", q) if t}
+    if query_tokens & _PREPARED_CATEGORY_TOKENS:
+        return base
+    for cat in _PREPARED_CATEGORY_TOKENS:
+        if _contains_whole_word(name, cat):
+            return min(2, base + 1)
+    return base
 
 
 def search_products_ranked(

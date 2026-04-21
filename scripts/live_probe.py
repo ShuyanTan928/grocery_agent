@@ -242,6 +242,68 @@ SCENARIOS: list[Scenario] = [
                                "raw_items_has": "spaghetti"}),
         ],
     ),
+    Scenario(
+        name="dish-accept-skips-pantry",
+        purpose="Confirming a dish with 'yes' must NOT pull pantry items "
+                "(salt, pepper, garlic) into the shopping list — that "
+                "contradicts the confirm message promise.",
+        turns=[
+            Turn("Recipe for spaghetti carbonara",
+                 expect_tool=["propose_dish", "reply"],
+                 expect_state={"pending_dish_name": "Spaghetti Carbonara"}),
+            Turn("yes, find the best prices",
+                 expect_tool=["apply_pending_dish"],
+                 expect_state={"pending_dish_name": None,
+                               "raw_items_has": "spaghetti",
+                               "raw_items_missing_all": ["salt", "black pepper", "pepper", "garlic"]}),
+        ],
+    ),
+    Scenario(
+        name="set-home-landmark",
+        purpose="User says 'my home is in Oakland' → set_home fires and "
+                "the planned route uses Oakland as the anchor (not the "
+                "config default).",
+        turns=[
+            Turn("my home is in oakland",
+                 expect_tool=["set_home", "reply"],
+                 expect_state={"home_label": "oakland"}),
+            Turn("I need milk",
+                 expect_tool=["add_items", "reply"],
+                 expect_state={"raw_items_min": 1}),
+            Turn("plan it",
+                 expect_tool=["optimize_and_route", "reply"],
+                 expect_state={"has_plan": True,
+                               "route_home_matches_state": True}),
+        ],
+    ),
+    Scenario(
+        name="set-home-unknown-street-asks-clarification",
+        purpose="Raw street address like '419 Melwood Ave' can't be "
+                "geocoded in mock mode → LLM must ask for a neighborhood/"
+                "landmark or coords, NOT silently accept.",
+        turns=[
+            Turn("my home is at 419 Melwood Ave",
+                 expect_state={"home_label": None}),
+        ],
+    ),
+    Scenario(
+        name="carbonara-plan-quality",
+        purpose="Full carbonara pipeline. Bacon must not map to a burrito SKU "
+                "and eggs must not map to Marshmallow/Chocolate candy SKUs.",
+        turns=[
+            Turn("Recipe for spaghetti carbonara",
+                 expect_tool=["propose_dish"]),
+            Turn("yes, find the best prices",
+                 expect_tool=["apply_pending_dish", "optimize_and_route", "reply"],
+                 expect_state={
+                     "has_plan": True,
+                     "plan_item_must_not_contain": {
+                         "bacon":  ["burrito", "burritos", "ravioli", "salad"],
+                         "eggs":   ["marshmallow", "chocolate", "truffle", "candy"],
+                     },
+                 }),
+        ],
+    ),
 ]
 
 
@@ -261,20 +323,34 @@ def _fmt_view(v: dict) -> str:
 
 def _state_snapshot(state: AgentState) -> dict:
     plan = state.shopping_plan or {}
+    plan_by_store = plan.get("plan") or {}
+    plan_skus: list[dict] = []
+    for _sid, entries in plan_by_store.items():
+        for e in entries or []:
+            plan_skus.append({
+                "source_item": (e.get("source_item") or "").lower(),
+                "item": (e.get("item") or "").lower(),
+            })
     return {
         "raw_items": [it.get("name") for it in state.raw_items],
         "avoid_stores": dict(state.preferences),
         "preferred_stores": dict(state.preferred_stores),
         "pending_dish_name": (state.pending_dish or {}).get("name"),
         "last_options_count": len(state.last_options),
-        "has_plan": bool((plan.get("plan") or {})),
-        "plan_stores": sorted((plan.get("plan") or {}).keys()),
+        "has_plan": bool(plan_by_store),
+        "plan_stores": sorted(plan_by_store.keys()),
         "plan_total": plan.get("total_cost"),
+        "plan_skus": plan_skus,
         "destinations": [d.get("label") for d in state.destinations],
         "route_stops": [
             {"kind": s.get("kind"), "name": s.get("name")}
             for s in ((state.route_plan or {}).get("ordered_stops") or [])
         ],
+        "home_label": (state.home or {}).get("label"),
+        "home_lat": (state.home or {}).get("lat"),
+        "home_lng": (state.home or {}).get("lng"),
+        "route_home_lat": ((state.route_plan or {}).get("home") or {}).get("lat"),
+        "route_home_lng": ((state.route_plan or {}).get("home") or {}).get("lng"),
     }
 
 
@@ -371,6 +447,38 @@ def _check_turn(
                     anomalies.append(
                         f"state.route_has_destination: '{want}' not in route destination stops {dest_names}"
                     )
+            elif k == "raw_items_missing_all":
+                for forbidden in want:
+                    if any(forbidden.lower() == n for n in names_lower):
+                        anomalies.append(
+                            f"state.raw_items_missing_all: '{forbidden}' unexpectedly present in {snap['raw_items']}"
+                        )
+            elif k == "home_label":
+                if want is None:
+                    if snap["home_label"] is not None:
+                        anomalies.append(f"state.home_label: expected None, got {snap['home_label']!r}")
+                else:
+                    got = (snap["home_label"] or "").lower()
+                    if want.lower() not in got:
+                        anomalies.append(f"state.home_label: expected substring '{want}', got {snap['home_label']!r}")
+            elif k == "route_home_matches_state":
+                if snap["route_home_lat"] != snap["home_lat"] or snap["route_home_lng"] != snap["home_lng"]:
+                    anomalies.append(
+                        f"state.route_home_matches_state: route home "
+                        f"({snap['route_home_lat']},{snap['route_home_lng']}) "
+                        f"≠ state home ({snap['home_lat']},{snap['home_lng']})"
+                    )
+            elif k == "plan_item_must_not_contain":
+                for src_hint, forbidden_substrings in want.items():
+                    src_hint_l = src_hint.lower()
+                    matched = [s for s in snap["plan_skus"] if src_hint_l in s["source_item"]]
+                    for sku in matched:
+                        for forbidden in forbidden_substrings:
+                            if forbidden.lower() in sku["item"]:
+                                anomalies.append(
+                                    f"state.plan_item_must_not_contain: source_item≈'{src_hint}' "
+                                    f"got SKU '{sku['item']}' which contains forbidden '{forbidden}'"
+                                )
 
     reply_l = (reply or "").lower()
     if turn.expect_reply_has:

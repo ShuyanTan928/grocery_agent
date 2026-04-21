@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grocery Agent</title>
+  <!-- Leaflet (CDN, no key) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin="" />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""></script>
+  <style>
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --border: #e5e7eb;
+      --ink: #111827;
+      --ink-soft: #6b7280;
+      --accent: #10b981;
+      --accent-ink: #064e3b;
+      --user: #2563eb;
+      --agent: #374151;
+      --danger: #dc2626;
+      --chip: #f3f4f6;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%; margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--ink);
+    }
+    .app {
+      display: grid;
+      grid-template-columns: minmax(340px, 420px) 1fr;
+      height: 100vh;
+    }
+    /* ── Chat (left) ── */
+    .chat {
+      display: flex; flex-direction: column;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+    }
+    .chat-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .chat-header h1 { font-size: 16px; margin: 0; }
+    .chat-header .meta { font-size: 12px; color: var(--ink-soft); }
+    .chat-header button {
+      font-size: 12px; background: var(--chip); border: 1px solid var(--border);
+      border-radius: 999px; padding: 4px 10px; cursor: pointer;
+    }
+    .chat-header button:hover { background: #e5e7eb; }
+    .chat-log {
+      flex: 1; overflow-y: auto; padding: 16px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .msg {
+      max-width: 90%; padding: 10px 12px; border-radius: 12px;
+      font-size: 14px; line-height: 1.45; white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .msg.user { align-self: flex-end; background: var(--user); color: white; }
+    .msg.agent { align-self: flex-start; background: #f3f4f6; color: var(--agent); }
+    .msg.system { align-self: center; color: var(--ink-soft); font-size: 12px; font-style: italic; }
+    .msg.error { align-self: center; color: var(--danger); font-size: 12px; }
+    .chat-input {
+      display: flex; gap: 8px; padding: 12px 14px;
+      border-top: 1px solid var(--border); background: var(--panel);
+    }
+    .chat-input textarea {
+      flex: 1; resize: none; border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 12px; font: inherit;
+      font-size: 14px; max-height: 120px; min-height: 42px;
+    }
+    .chat-input textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    .chat-input button {
+      border: none; background: var(--ink); color: white;
+      padding: 0 18px; border-radius: 10px; cursor: pointer;
+      font-weight: 600;
+    }
+    .chat-input button:disabled { background: #9ca3af; cursor: not-allowed; }
+    .typing { color: var(--ink-soft); font-size: 12px; padding-left: 4px; }
+    .hint-chips {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      padding: 0 14px 10px 14px;
+      border-top: 1px solid var(--border); padding-top: 10px;
+    }
+    .chip {
+      font-size: 12px; background: var(--chip); color: var(--ink);
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 4px 10px; cursor: pointer;
+    }
+    .chip:hover { background: #e5e7eb; }
+
+    /* ── Right pane ── */
+    .pane {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      height: 100vh; overflow: hidden;
+    }
+    .pane > section {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      overflow-y: auto;
+    }
+    .pane > section h2 {
+      font-size: 13px; font-weight: 700;
+      margin: 0 0 8px 0; color: var(--ink-soft);
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .list-summary .empty,
+    .stops-section .empty { color: var(--ink-soft); font-size: 14px; }
+    .raw-items { display: flex; flex-wrap: wrap; gap: 6px; }
+    .raw-items .pill {
+      background: var(--chip); color: var(--ink);
+      padding: 4px 10px; border-radius: 999px; font-size: 13px;
+    }
+    .raw-items .pill.ambiguous { background: #fef3c7; color: #92400e; }
+    .totals {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-top: 8px; gap: 10px;
+    }
+    .totals .price { font-size: 20px; font-weight: 700; }
+    .totals .hint { font-size: 12px; color: var(--ink-soft); }
+    .route-meta { display: flex; gap: 16px; font-size: 13px; color: var(--ink-soft); }
+    .route-meta span strong { color: var(--ink); }
+    .stops { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+    .stop {
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .stop.dest { border-left: 3px solid var(--accent); }
+    .stop.store { border-left: 3px solid #3b82f6; }
+    .stop-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 8px; flex-wrap: wrap;
+    }
+    .stop-header .badge {
+      font-size: 10px; padding: 2px 8px; border-radius: 999px;
+      text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700;
+    }
+    .stop.store .badge { background: #dbeafe; color: #1e3a8a; }
+    .stop.dest .badge { background: #d1fae5; color: var(--accent-ink); }
+    .stop-header .leg { font-size: 11px; color: var(--ink-soft); }
+    .stop-name { font-weight: 600; font-size: 14px; }
+    .stop-addr { font-size: 12px; color: var(--ink-soft); }
+    .stop-items { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; }
+    .stop-items .row {
+      display: flex; justify-content: space-between;
+      font-size: 13px; color: var(--ink);
+    }
+    .stop-items .row a {
+      color: inherit; text-decoration: none; flex: 1; padding-right: 8px;
+    }
+    .stop-items .row a:hover { text-decoration: underline; }
+    .stop-items .row .p { color: var(--ink-soft); white-space: nowrap; }
+
+    .map-wrap {
+      position: relative;
+      padding: 0 !important; min-height: 240px;
+    }
+    #map {
+      width: 100%; height: 100%; min-height: 240px;
+    }
+    .map-placeholder {
+      height: 100%; min-height: 240px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink-soft); font-size: 13px;
+      background: repeating-linear-gradient(
+        45deg, #f9fafb, #f9fafb 10px, #f3f4f6 10px, #f3f4f6 20px);
+    }
+    .map-actions {
+      position: absolute; top: 10px; right: 10px; z-index: 500;
+      background: white; border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 10px;
+      font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .map-actions a { color: var(--ink); text-decoration: none; }
+    .map-actions a:hover { text-decoration: underline; }
+
+    @media (max-width: 800px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: 55vh 45vh; }
+      .chat { border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ────────── Left: chat ────────── -->
+    <div class="chat">
+      <div class="chat-header">
+        <div>
+          <h1>Grocery Agent</h1>
+          <div class="meta" id="session-meta"></div>
+        </div>
+        <button id="reset-btn" title="Start a new conversation">Reset</button>
+      </div>
+
+      <div class="chat-log" id="chat-log">
+        <div class="msg agent">
+          Hi — tell me what you need. Try <em>"1 gallon milk and a dozen eggs"</em>,
+          <em>"recipe for carbonara"</em>, or <em>"add CMU as a stop on the way home"</em>.
+        </div>
+      </div>
+
+      <div class="hint-chips">
+        <button class="chip" data-prompt="I need 1 gallon of milk and a dozen eggs">milk + eggs</button>
+        <button class="chip" data-prompt="Recipe for spaghetti carbonara">carbonara</button>
+        <button class="chip" data-prompt="also need to swing by CMU on the way home">+ CMU stop</button>
+        <button class="chip" data-prompt="yes, find the best prices">plan it</button>
+      </div>
+
+      <div class="chat-input">
+        <textarea id="chat-input" rows="1" placeholder="Say what you need…" autofocus></textarea>
+        <button id="send-btn">Send</button>
+      </div>
+    </div>
+
+    <!-- ────────── Right: list + route + map ────────── -->
+    <div class="pane">
+      <section class="list-summary">
+        <h2>Shopping List</h2>
+        <div id="raw-items" class="raw-items"></div>
+        <div id="list-empty" class="empty">No items yet.</div>
+        <div id="totals" class="totals" style="display:none">
+          <div>
+            <div class="hint">Total estimated</div>
+            <div class="price" id="total-cost">—</div>
+          </div>
+          <div class="hint" id="errand-hint"></div>
+        </div>
+      </section>
+
+      <section class="stops-section">
+        <h2>Route &amp; stops</h2>
+        <div id="route-meta" class="route-meta" style="display:none"></div>
+        <div id="stops" class="stops"></div>
+        <div id="stops-empty" class="empty">Plan not built yet. Say "plan it" after your list is set.</div>
+      </section>
+
+      <section class="map-wrap">
+        <div id="map"></div>
+        <div id="map-placeholder" class="map-placeholder">
+          Map will render here once a route is planned (optional view).
+        </div>
+        <div id="map-actions" class="map-actions" style="display:none"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    // ─── Session ───────────────────────────────────────────────
+    const SESSION_KEY = "grocery-agent-session";
+    let sessionId = localStorage.getItem(SESSION_KEY);
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      localStorage.setItem(SESSION_KEY, sessionId);
+    }
+    document.getElementById("session-meta").textContent =
+      `session ${sessionId.slice(0, 8)}…`;
+
+    // ─── DOM refs ───────────────────────────────────────────────
+    const chatLog = document.getElementById("chat-log");
+    const chatInput = document.getElementById("chat-input");
+    const sendBtn = document.getElementById("send-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const rawItemsEl = document.getElementById("raw-items");
+    const listEmpty = document.getElementById("list-empty");
+    const totalsEl = document.getElementById("totals");
+    const totalCostEl = document.getElementById("total-cost");
+    const errandHintEl = document.getElementById("errand-hint");
+    const routeMetaEl = document.getElementById("route-meta");
+    const stopsEl = document.getElementById("stops");
+    const stopsEmptyEl = document.getElementById("stops-empty");
+    const mapEl = document.getElementById("map");
+    const mapPlaceholderEl = document.getElementById("map-placeholder");
+    const mapActionsEl = document.getElementById("map-actions");
+
+    // ─── Leaflet ───────────────────────────────────────────────
+    let map = null;
+    let markersLayer = null;
+    let routeLayer = null;
+
+    function ensureMap() {
+      if (map) return map;
+      mapPlaceholderEl.style.display = "none";
+      mapEl.style.display = "block";
+      map = L.map("map", { zoomControl: true }).setView([40.4406, -79.9959], 12);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+      markersLayer = L.layerGroup().addTo(map);
+      routeLayer = L.layerGroup().addTo(map);
+      return map;
+    }
+
+    function renderMap(route, destinations) {
+      if (!route || !route.ordered_stops || route.ordered_stops.length === 0) {
+        if (map) {
+          markersLayer.clearLayers();
+          routeLayer.clearLayers();
+        }
+        mapEl.style.display = "none";
+        mapPlaceholderEl.style.display = "flex";
+        mapActionsEl.style.display = "none";
+        return;
+      }
+      // Route present → make sure the container is visible BEFORE we touch
+      // Leaflet. ensureMap() only toggles display on first-ever init, so we
+      // repeat the un-hide here (otherwise after a reset the map stays
+      // display:none and nothing paints). Also invalidateSize() makes
+      // Leaflet re-measure the newly-visible container so tiles align.
+      mapPlaceholderEl.style.display = "none";
+      mapEl.style.display = "block";
+      ensureMap();
+      map.invalidateSize();
+      markersLayer.clearLayers();
+      routeLayer.clearLayers();
+
+      const home = route.home;
+      const points = [];
+
+      if (home && home.lat != null && home.lng != null) {
+        const homeIcon = L.divIcon({
+          className: "",
+          html: '<div style="background:#111;color:white;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid white;box-shadow:0 0 0 1px #111">H</div>',
+          iconSize: [24, 24], iconAnchor: [12, 12],
+        });
+        L.marker([home.lat, home.lng], { icon: homeIcon })
+          .bindPopup(`<strong>Home</strong><br/>${escapeHtml(home.address || "")}`)
+          .addTo(markersLayer);
+        points.push([home.lat, home.lng]);
+      }
+
+      route.ordered_stops.forEach((s, i) => {
+        if (s.lat == null || s.lng == null) return;
+        const isDest = s.kind === "destination";
+        const bg = isDest ? "#10b981" : "#3b82f6";
+        const icon = L.divIcon({
+          className: "",
+          html: `<div style="background:${bg};color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:2px solid white;box-shadow:0 0 0 1px ${bg}">${i + 1}</div>`,
+          iconSize: [28, 28], iconAnchor: [14, 14],
+        });
+        const itemsHtml = (s.items || []).map(it =>
+          `<li>${escapeHtml(it.item)} — $${Number(it.price).toFixed(2)}</li>`
+        ).join("");
+        const popup = `
+          <strong>${i + 1}. ${escapeHtml(s.name || "")}</strong><br/>
+          <span style="color:#6b7280;font-size:12px">${escapeHtml(s.address || "")}</span>
+          ${itemsHtml ? `<ul style="margin:6px 0 0 18px;padding:0;font-size:12px">${itemsHtml}</ul>` : ""}
+          ${s.leg_duration_min != null ? `<div style="margin-top:4px;font-size:11px;color:#6b7280">${s.leg_duration_min} min from previous stop</div>` : ""}
+        `;
+        L.marker([s.lat, s.lng], { icon }).bindPopup(popup).addTo(markersLayer);
+        points.push([s.lat, s.lng]);
+      });
+
+      // Close the loop back home for a visible round trip.
+      if (home && home.lat != null && home.lng != null && points.length > 1) {
+        points.push([home.lat, home.lng]);
+      }
+
+      if (points.length >= 2) {
+        L.polyline(points, { color: "#374151", weight: 3, opacity: 0.6, dashArray: "6 6" })
+          .addTo(routeLayer);
+        map.fitBounds(L.latLngBounds(points).pad(0.2));
+      } else if (points.length === 1) {
+        map.setView(points[0], 13);
+      }
+
+      if (route.ors_directions_url) {
+        mapActionsEl.innerHTML =
+          `<a href="${route.ors_directions_url}" target="_blank" rel="noopener">Open turn-by-turn ↗</a>`;
+        mapActionsEl.style.display = "block";
+      } else {
+        mapActionsEl.style.display = "none";
+      }
+    }
+
+    // ─── Render helpers ────────────────────────────────────────
+    function escapeHtml(s) {
+      return (s || "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;",
+        '"': "&quot;", "'": "&#39;",
+      }[c]));
+    }
+
+    function addMsg(role, text) {
+      const el = document.createElement("div");
+      el.className = "msg " + role;
+      el.textContent = text;
+      chatLog.appendChild(el);
+      chatLog.scrollTop = chatLog.scrollHeight;
+      return el;
+    }
+
+    function formatItem(it) {
+      const q = (it.quantity != null && it.quantity !== "") ? it.quantity : "";
+      const u = it.unit || "";
+      const qty = [q, u].filter(Boolean).join(" ");
+      return qty ? `${it.name} · ${qty}` : it.name;
+    }
+
+    function renderRawItems(items) {
+      rawItemsEl.innerHTML = "";
+      if (!items || !items.length) {
+        listEmpty.style.display = "block";
+        return;
+      }
+      listEmpty.style.display = "none";
+      items.forEach(it => {
+        const pill = document.createElement("span");
+        pill.className = "pill" + (it.ambiguous ? " ambiguous" : "");
+        pill.textContent = formatItem(it);
+        if (it.ambiguous) pill.title = "Needs quantity/unit";
+        rawItemsEl.appendChild(pill);
+      });
+    }
+
+    function renderPlanTotals(plan, errandQuote) {
+      if (!plan || plan.total_cost == null) {
+        totalsEl.style.display = "none";
+        return;
+      }
+      totalsEl.style.display = "flex";
+      totalCostEl.textContent = `$${Number(plan.total_cost).toFixed(2)}`;
+      if (errandQuote && errandQuote.total != null) {
+        errandHintEl.textContent = `+ errand quote $${Number(errandQuote.total).toFixed(2)}`;
+      } else {
+        errandHintEl.textContent = "";
+      }
+    }
+
+    function renderStops(route) {
+      stopsEl.innerHTML = "";
+      routeMetaEl.style.display = "none";
+      if (!route || !route.ordered_stops || !route.ordered_stops.length) {
+        stopsEmptyEl.style.display = "block";
+        return;
+      }
+      stopsEmptyEl.style.display = "none";
+
+      if (route.total_duration_min != null || route.total_distance_km != null) {
+        routeMetaEl.style.display = "flex";
+        routeMetaEl.innerHTML = `
+          ${route.total_duration_min != null
+            ? `<span><strong>${route.total_duration_min}</strong> min driving</span>` : ""}
+          ${route.total_distance_km != null
+            ? `<span><strong>${route.total_distance_km}</strong> km</span>` : ""}
+          ${route.destinations_count ? `<span><strong>${route.destinations_count}</strong> custom stop${route.destinations_count > 1 ? "s" : ""}</span>` : ""}
+        `;
+      }
+
+      route.ordered_stops.forEach((s, i) => {
+        const isDest = s.kind === "destination";
+        const card = document.createElement("div");
+        card.className = "stop " + (isDest ? "dest" : "store");
+
+        const itemsHtml = (s.items || []).map(it => `
+          <div class="row">
+            ${it.url
+              ? `<a href="${it.url}" target="_blank" rel="noopener">${escapeHtml(it.item)}</a>`
+              : `<span>${escapeHtml(it.item)}</span>`}
+            <span class="p">$${Number(it.price).toFixed(2)}</span>
+          </div>
+        `).join("");
+
+        card.innerHTML = `
+          <div class="stop-header">
+            <div>
+              <span class="badge">${isDest ? "Destination" : `Stop ${i + 1}`}</span>
+              <span class="stop-name">${escapeHtml(s.name || "")}</span>
+            </div>
+            <span class="leg">${s.leg_duration_min != null ? `${s.leg_duration_min} min drive` : ""}</span>
+          </div>
+          <div class="stop-addr">${escapeHtml(s.address || "")}</div>
+          ${itemsHtml ? `<div class="stop-items">${itemsHtml}</div>` : ""}
+        `;
+        stopsEl.appendChild(card);
+      });
+    }
+
+    function renderState(state) {
+      renderRawItems(state.raw_items);
+      renderPlanTotals(state.shopping_plan, state.errand_quote);
+      renderStops(state.route);
+      renderMap(state.route, state.destinations);
+    }
+
+    // ─── API ───────────────────────────────────────────────────
+    async function apiChat(message) {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, message }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
+    async function apiReset() {
+      const res = await fetch("/api/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      return res.json();
+    }
+
+    async function apiState() {
+      const res = await fetch(`/api/state?session_id=${encodeURIComponent(sessionId)}`);
+      return res.json();
+    }
+
+    // ─── Send flow ─────────────────────────────────────────────
+    let sending = false;
+    async function send(text) {
+      if (sending) return;
+      const msg = (text ?? chatInput.value).trim();
+      if (!msg) return;
+      sending = true;
+      sendBtn.disabled = true;
+      addMsg("user", msg);
+      chatInput.value = "";
+      const typing = addMsg("system", "thinking…");
+      try {
+        const data = await apiChat(msg);
+        typing.remove();
+        addMsg("agent", data.reply);
+        renderState(data.state);
+      } catch (e) {
+        typing.remove();
+        addMsg("error", "⚠️ " + e.message);
+      } finally {
+        sending = false;
+        sendBtn.disabled = false;
+        chatInput.focus();
+      }
+    }
+
+    // ─── Events ────────────────────────────────────────────────
+    sendBtn.addEventListener("click", () => send());
+    chatInput.addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+    resetBtn.addEventListener("click", async () => {
+      if (!confirm("Reset the conversation? This clears the list and plan.")) return;
+      await apiReset();
+      chatLog.innerHTML = "";
+      addMsg("system", "New conversation started.");
+      renderState({ raw_items: [], shopping_plan: null, route: null, destinations: [] });
+    });
+    document.querySelectorAll(".chip[data-prompt]").forEach(btn => {
+      btn.addEventListener("click", () => send(btn.dataset.prompt));
+    });
+
+    // ─── Boot ──────────────────────────────────────────────────
+    apiState().then(({ state }) => renderState(state)).catch(() => {});
+  })();
+  </script>
+</body>
+</html>

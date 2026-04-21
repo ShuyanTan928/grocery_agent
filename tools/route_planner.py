@@ -177,6 +177,7 @@ def plan_route(
     store_ids: list[str],
     stores_meta: dict,
     extra_waypoints: list[dict] | None = None,
+    home_override: dict | None = None,
 ) -> dict:
     """
     Given a list of store IDs to visit, compute the optimal driving
@@ -188,6 +189,13 @@ def plan_route(
     stores. When any extras are present we use a haversine-based distance
     matrix (mock mode) or ORS (live mode) to cover the new coordinates.
 
+    `home_override` lets the caller swap out the default home anchor
+    (config.HOME_*) at runtime — used when the user sets a custom home
+    address during the conversation. Shape: {lat, lng, address, label}.
+    When None, falls back to the module-level HOME_* constants. The
+    chosen home is echoed back in the result's `home` field so the web
+    layer can render the correct H marker without consulting settings.
+
     Returns:
     {
       "ordered_stops": [
@@ -198,16 +206,30 @@ def plan_route(
          "leg_duration_min": 8, "leg_distance_km": 3.2},
         ...
       ],
+      "home": {"lat": ..., "lng": ..., "address": ..., "label": ...},
       "total_duration_min": 35,
       "total_distance_km": 18.4,
       "ors_directions_url": "https://...",   # deep link to ORS route map
       "destinations_count": 1
     }
     """
+    home = home_override or {}
+    home_lat = float(home.get("lat", HOME_LAT))
+    home_lng = float(home.get("lng", HOME_LNG))
+    home_address = home.get("address") or HOME_ADDRESS
+    home_label = home.get("label") or "Home"
+    home_view = {
+        "lat": home_lat,
+        "lng": home_lng,
+        "address": home_address,
+        "label": home_label,
+    }
+
     extras = list(extra_waypoints or [])
     if len(store_ids) == 0 and not extras:
         return {
             "ordered_stops": [],
+            "home": home_view,
             "total_duration_min": 0,
             "total_distance_km": 0,
             "destinations_count": 0,
@@ -243,6 +265,7 @@ def plan_route(
                 "leg_duration_min": None,
                 "leg_distance_km": None,
             }],
+            "home": home_view,
             "total_duration_min": None,
             "total_distance_km": None,
             "ors_directions_url": None,
@@ -310,10 +333,15 @@ def plan_route(
         f"{combined_meta[all_ids[i]]['lng']},{combined_meta[all_ids[i]]['lat']}"
         for i in best_order
     )
-    ors_url = f"https://maps.openrouteservice.org/directions?n1={HOME_LAT}&n2={HOME_LNG}&n3=14&a={waypoints}&b=0&c=0&k1=en-US&k2=km"
+    ors_url = (
+        f"https://maps.openrouteservice.org/directions?"
+        f"n1={home_lat}&n2={home_lng}&n3=14&a={waypoints}"
+        f"&b=0&c=0&k1=en-US&k2=km"
+    )
 
     return {
         "ordered_stops": ordered_stops,
+        "home": home_view,
         "total_duration_min": round(total_duration_sec / 60, 1),
         "total_distance_km": round(total_distance_m / 1000, 2),
         "ors_directions_url": ors_url,

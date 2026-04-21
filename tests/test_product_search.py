@@ -115,6 +115,55 @@ def test_relevance_tier_classification():
     assert ps._relevance_tier("foo", "") == 2
 
 
+def test_relevance_tier_demotes_prepared_category_skus():
+    """Regression: real bacon must outrank frozen burritos listing bacon
+    as an ingredient, and real eggs must outrank Marshmallow Eggs candy."""
+    # bacon query — burrito SKU has "burritos" (prepared) and should be demoted
+    real_bacon = ps._relevance_tier("bacon", "Sugardale Hickory Smoked Bacon (12 oz)")
+    burrito = ps._relevance_tier(
+        "bacon",
+        "El Monterey Burritos, Egg, Applewood Smoked Bacon & Cheese (1 each)",
+    )
+    ravioli = ps._relevance_tier("bacon", "Brussels Sprouts & Uncured Bacon Ravioli 8 Oz")
+    salad_kit = ps._relevance_tier("bacon", "Reggano Ranch and Bacon Pasta Salad Kit")
+    bits = ps._relevance_tier("bacon", "Tuscan Garden Real Bacon Bits")
+    assert real_bacon == 0
+    assert burrito > real_bacon
+    assert ravioli > real_bacon
+    assert salad_kit > real_bacon
+    assert bits > real_bacon
+
+    # eggs query — marshmallow candy demoted, real eggs stay tier 0
+    real_eggs = ps._relevance_tier("eggs", "Crystal Spring Large White Eggs, 12 Ct")
+    marshmallow = ps._relevance_tier("eggs", "Marshmallow Eggs 1.5 Oz")
+    chocolate = ps._relevance_tier("eggs", "Chocolate Truffle Eggs 2.22 Oz")
+    assert real_eggs == 0
+    assert marshmallow > real_eggs
+    assert chocolate > real_eggs
+
+
+def test_relevance_tier_no_demotion_when_query_is_category():
+    """If the user explicitly asks for the prepared category (e.g. "yogurt",
+    "chocolate"), don't demote matching SKUs."""
+    # "yogurt" query should still tier-0 Greek yogurt even though "yogurt" is in the blocklist
+    assert ps._relevance_tier("yogurt", "FAGE Total Greek Yogurt 6 Oz") == 0
+    # "marshmallow" query keeps Marshmallow Eggs at tier 0
+    assert ps._relevance_tier("marshmallow", "Marshmallow Eggs 1.5 Oz") == 0
+    # "chocolate chips" keeps chocolate chip SKUs at tier 0
+    assert ps._relevance_tier(
+        "chocolate chips", "Nestle Toll House Semi-Sweet Chocolate Chips 12 oz"
+    ) == 0
+
+
+def test_relevance_tier_demotion_caps_at_two():
+    """Demotion must never produce an invalid tier (≤ 2)."""
+    # tier-1 base + demotion should cap at 2, not become 3
+    t = ps._relevance_tier(
+        "bacon eggs", "Frozen Breakfast Burritos with Bacon and Eggs"
+    )
+    assert t in (1, 2)
+
+
 def test_search_ranked_puts_exact_matches_first(fake_caches, monkeypatch):
     # Add a noisy item to verify ordering
     extra = {

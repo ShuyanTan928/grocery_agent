@@ -289,6 +289,94 @@ class TestDestinations:
         assert view["destinations"] == [{"label": "CMU", "address": "CMU"}]
 
 
+# ────────────────────────── home anchor ────────────────────────────
+
+class TestSetHome:
+    def test_landmark_query_resolves_via_geocode(self):
+        s = AgentState()
+        obs = run_tool(s, "set_home", {"query": "oakland"})
+        assert obs["ok"] is True
+        assert s.home is not None
+        assert s.home["label"] == "oakland"
+        assert isinstance(s.home["lat"], float)
+        assert isinstance(s.home["lng"], float)
+        assert s.home["source"] == "landmark"
+
+    def test_explicit_coords_skip_geocode(self):
+        s = AgentState()
+        obs = run_tool(s, "set_home", {
+            "query": "419 Melwood Ave",
+            "lat": 40.4466,
+            "lng": -79.9565,
+        })
+        assert obs["ok"] is True
+        assert s.home["lat"] == 40.4466
+        assert s.home["lng"] == -79.9565
+        assert s.home["source"] == "user_coords"
+        assert s.home["address"] == "419 Melwood Ave"
+
+    def test_unknown_query_without_coords_returns_error(self):
+        # In mock mode '419 Melwood Ave' isn't a landmark and ORS is disabled.
+        s = AgentState()
+        obs = run_tool(s, "set_home", {"query": "419 Melwood Ave"})
+        assert obs["ok"] is False
+        assert "couldn't geocode" in obs["error"].lower()
+        assert s.home is None  # state untouched on failure
+        assert isinstance(obs.get("hint_landmarks"), list) and obs["hint_landmarks"]
+
+    def test_empty_query_and_no_coords_is_error(self):
+        s = AgentState()
+        obs = run_tool(s, "set_home", {})
+        assert "error" in obs
+
+    def test_non_numeric_coords_is_error(self):
+        s = AgentState()
+        obs = run_tool(s, "set_home", {"lat": "north", "lng": "west"})
+        assert "error" in obs
+
+    def test_set_home_invalidates_route_and_errand(self):
+        s = AgentState()
+        s.route_plan = {"ordered_stops": []}
+        s.errand_quote = {"fee": 1.0}
+        run_tool(s, "set_home", {"query": "shadyside"})
+        assert s.route_plan is None
+        assert s.errand_quote is None
+
+    def test_set_home_replaces_previous_home(self):
+        s = AgentState()
+        run_tool(s, "set_home", {"query": "oakland"})
+        first = dict(s.home)
+        run_tool(s, "set_home", {"query": "squirrel hill"})
+        assert s.home["label"] == "squirrel hill"
+        assert s.home["lat"] != first["lat"]
+
+    def test_home_appears_in_llm_view(self):
+        s = AgentState()
+        assert s.to_llm_view()["home"] is None
+        run_tool(s, "set_home", {"query": "oakland"})
+        view = s.to_llm_view()
+        assert view["home"] == {"label": "oakland", "address": "oakland"}
+
+
+class TestClearHome:
+    def test_clear_after_set(self):
+        s = AgentState()
+        run_tool(s, "set_home", {"query": "oakland"})
+        s.route_plan = {"ordered_stops": []}
+        s.errand_quote = {"fee": 2.0}
+        obs = run_tool(s, "clear_home", {})
+        assert obs["cleared"] is True
+        assert s.home is None
+        assert s.route_plan is None
+        assert s.errand_quote is None
+
+    def test_clear_when_unset_is_noop(self):
+        s = AgentState()
+        obs = run_tool(s, "clear_home", {})
+        assert obs["cleared"] is False
+        assert s.home is None
+
+
 # ────────────────────────── errand ─────────────────────────────────
 
 class TestSetErrand:
