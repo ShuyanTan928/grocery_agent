@@ -58,6 +58,10 @@ ORS_BASE_URL = "https://api.openrouteservice.org"
 
 # --- Data ---
 USE_MOCK_DATA = os.getenv("USE_MOCK_DATA", "true").lower() == "true"
+# When true, geocode() never calls ORS (landmarks only). Default false so
+# street addresses resolve with USE_MOCK_DATA=true as long as ORS_API_KEY
+# is configured.
+USE_MOCK_GEOCODE = _env_truthy("USE_MOCK_GEOCODE")
 MOCK_DATA_DIR = "data/"
 PRICE_CACHE_TTL = 3600
 PRICE_CACHE_DIR = os.getenv("PRICE_CACHE_DIR", "data/price_cache/")
@@ -74,10 +78,10 @@ TARGET_STORE_CODE = os.getenv("TARGET_STORE_CODE", "2757")
 # --- Aldi ---
 ALDI_STORE_CODE = os.getenv("ALDI_STORE_CODE", "4061")
 
-# --- User home location ---
-HOME_ADDRESS = "4800 Forbes Ave, Pittsburgh, PA 15213"
-HOME_LAT = 40.4444
-HOME_LNG = -79.9431
+# --- User home location (default route anchor when state.home is unset) ---
+HOME_ADDRESS = "419 Melwood Ave, Pittsburgh, PA 15213"
+HOME_LAT = 40.45459
+HOME_LNG = -79.95277
 
 # --- Routing preferences ---
 MAX_STORES_PER_TRIP = 4

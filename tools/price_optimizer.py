@@ -283,13 +283,18 @@ def _llm_pick_for_item(item_query: str, stores: dict) -> dict | None:
 
     Used only when USE_LLM_MAIN_OPTIMIZER is true; callers should fall
     back to find_cheapest_in_cache when this returns None."""
-    from tools.recommender import recommend_for_query
+    from tools.recommender import line_item_pick_hints, recommend_for_query
 
     q = _strip_qty_unit(item_query) or (item_query or "").strip()
     if not q:
         return None
     try:
-        result = recommend_for_query(q, topk=1, max_candidates=40)
+        result = recommend_for_query(
+            q,
+            topk=1,
+            max_candidates=40,
+            extra_constraints=line_item_pick_hints(item_query),
+        )
     except Exception:
         return None
     picks = result.get("picks") or []

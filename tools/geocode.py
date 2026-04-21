@@ -3,30 +3,44 @@ Lightweight place-name → (lat, lng) resolver for destination waypoints.
 
 The agent lets a user tack on non-shopping stops to a route ("I also need
 to swing by CMU before going home"). To route through those stops we need
-coordinates. We deliberately avoid a heavy geocoding dependency:
+coordinates. Resolution order:
 
-  1. A small curated dict of Pittsburgh landmarks / neighborhoods covers
-     the most common asks instantly and works entirely offline. This is
-     the only path exercised in mock mode (the default for tests / demo).
-  2. When USE_MOCK_DATA is false AND an ORS_API_KEY is configured, we fall
-     back to the OpenRouteService geocode/search endpoint. We bias the
-     query to Pittsburgh and keep the top hit.
-  3. Anything else returns None — the caller is expected to ask the user
-     for an address or explicit lat/lng.
+  1. Optional file cache (data/geocode_cache.json) — ORS hits only, keyed
+     by normalized query. Lets street addresses work offline after first
+     resolve.
+  2. A small curated dict of Pittsburgh landmarks / neighborhoods (always
+     offline).
+  3. When ORS_API_KEY is set (not the placeholder) and USE_MOCK_GEOCODE is
+     false, OpenRouteService geocode/search — **independent of USE_MOCK_DATA**
+     so product/route mocks can coexist with real address lookup.
+  4. Otherwise None — caller asks for landmark, coords, or a configured key.
 
 Return shape for a hit:
   {"label": <echo of user query>, "address": <display address>,
-   "lat": float, "lng": float, "source": "landmark" | "ors"}
+   "lat": float, "lng": float, "source": "landmark" | "ors" | "geocode_cache"}
 """
 
 from __future__ import annotations
 
+import json
 import re
+import threading
+from pathlib import Path
 from typing import Any
 
 import requests
 
-from config.settings import ORS_API_KEY, ORS_BASE_URL, USE_MOCK_DATA
+from config.settings import (
+    MOCK_DATA_DIR,
+    ORS_API_KEY,
+    ORS_BASE_URL,
+    USE_MOCK_GEOCODE,
+)
+
+# Tests can monkeypatch to a temp file.
+GEOCODE_CACHE_OVERRIDE: Path | None = None
+
+_cache_lock = threading.Lock()
 
 
 PITTSBURGH_LANDMARKS: dict[str, tuple[float, float]] = {
@@ -78,6 +92,14 @@ PITTSBURGH_LANDMARKS: dict[str, tuple[float, float]] = {
     "waterfront": (40.4067, -79.8889),
     "monroeville mall": (40.4331, -79.7636),
     "ross park mall": (40.5512, -80.0025),
+
+    # Bakery Living — 6480 Living Pl (user-provided; "pi" = Pl typo)
+    "bakery living": (40.45601, -79.91707),
+    "bakeryliving": (40.45601, -79.91707),
+    "6480 living pi": (40.45601, -79.91707),
+    "6480 living pl": (40.45601, -79.91707),
+    "6480 living place": (40.45601, -79.91707),
+    "living pi": (40.45601, -79.91707),
 }
 
 
@@ -104,17 +126,92 @@ def _match_landmark(q: str) -> tuple[float, float] | None:
     return candidates[0][2]
 
 
+def _effective_cache_path() -> Path:
+    return GEOCODE_CACHE_OVERRIDE or Path(MOCK_DATA_DIR) / "geocode_cache.json"
+
+
+def _cache_read_all() -> dict[str, Any]:
+    path = _effective_cache_path()
+    if not path.exists():
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f)
+        return raw if isinstance(raw, dict) else {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _cache_get(normalized: str) -> dict[str, Any] | None:
+    with _cache_lock:
+        row = _cache_read_all().get(normalized)
+    if not isinstance(row, dict):
+        return None
+    lat, lng = row.get("lat"), row.get("lng")
+    if lat is None or lng is None:
+        return None
+    return {
+        "lat": float(lat),
+        "lng": float(lng),
+        "address": str(row.get("address") or normalized),
+        "source": str(row.get("source") or "geocode_cache"),
+    }
+
+
+def _cache_store(
+    normalized: str, lat: float, lng: float, address: str, source: str
+) -> None:
+    path = _effective_cache_path()
+    with _cache_lock:
+        data = _cache_read_all()
+        data[normalized] = {
+            "lat": lat,
+            "lng": lng,
+            "address": address,
+            "source": source,
+        }
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".json.tmp")
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            tmp.replace(path)
+        except OSError:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def _ors_key_configured() -> bool:
+    k = (ORS_API_KEY or "").strip()
+    return bool(k and k != "YOUR_ORS_KEY")
+
+
+def build_ors_search_text(query: str) -> str:
+    """Bias free-form text toward Pittsburgh when the user omits city/state."""
+    q = (query or "").strip()
+    if not q:
+        return q
+    lower = q.lower()
+    if "pittsburgh" in lower:
+        return q
+    if re.search(r",\s*pa\b", lower) or re.search(r"\bpa\s+[0-9]{5}\b", lower):
+        return q
+    return f"{q}, Pittsburgh, PA, USA"
+
+
 def _ors_geocode(query: str) -> dict[str, Any] | None:
     """Call ORS geocode/search. Biased to Pittsburgh metro. Returns None
     on any failure (network, no key, no results)."""
-    if not ORS_API_KEY or ORS_API_KEY == "YOUR_ORS_KEY":
+    if not _ors_key_configured():
         return None
     try:
         resp = requests.get(
             f"{ORS_BASE_URL}/geocode/search",
             params={
                 "api_key": ORS_API_KEY,
-                "text": f"{query}, Pittsburgh, PA",
+                "text": build_ors_search_text(query),
                 "size": 1,
                 "boundary.circle.lat": 40.4406,
                 "boundary.circle.lon": -79.9959,
@@ -147,8 +244,7 @@ def geocode(query: str) -> dict[str, Any] | None:
     """Resolve a free-form place name to a waypoint dict.
 
     Returns {label, address, lat, lng, source} or None if the query can't
-    be resolved from the landmark dict or ORS (which is skipped entirely
-    in mock mode)."""
+    be resolved from landmarks, disk cache, or ORS."""
     label = (query or "").strip()
     if not label:
         return None
@@ -167,16 +263,34 @@ def geocode(query: str) -> dict[str, Any] | None:
             "source": "landmark",
         }
 
-    if USE_MOCK_DATA:
+    cached = _cache_get(normalized)
+    if cached is not None:
+        return {
+            "label": label,
+            "address": cached["address"],
+            "lat": cached["lat"],
+            "lng": cached["lng"],
+            "source": cached["source"],
+        }
+
+    if USE_MOCK_GEOCODE or not _ors_key_configured():
         return None
 
     ors_hit = _ors_geocode(label)
     if ors_hit is None:
         return None
-    return {
+    out = {
         "label": label,
         "address": ors_hit["address"],
         "lat": ors_hit["lat"],
         "lng": ors_hit["lng"],
         "source": "ors",
     }
+    _cache_store(
+        normalized,
+        out["lat"],
+        out["lng"],
+        out["address"],
+        "ors",
+    )
+    return out

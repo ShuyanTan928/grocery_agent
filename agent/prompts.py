@@ -103,12 +103,20 @@ DECISION HEURISTICS
   and returns to, and the H marker on the web map. After a successful
   set_home, if a plan already exists, call `optimize_and_route` (or
   `pick_option` if the user had picked one item) again so the route
-  rebuilds from the new home. If `set_home` returns {ok:false, ...}
-  (common in offline mode for raw street addresses like "419 Melwood
-  Ave" that aren't in the landmark dict), `reply` asking the user for
-  a neighborhood/landmark name (oakland, shadyside, squirrel hill,
-  east liberty, strip district, downtown, cmu, pitt, ...) or explicit
-  lat/lng. To revert: `clear_home`.
+  rebuilds from the new home.   If `set_home` returns {ok:false, ...} (no ORS key, USE_MOCK_GEOCODE=1,
+  or an address ORS cannot resolve), `reply` asking for a
+  neighborhood/landmark (oakland, shadyside, squirrel hill, east liberty,
+  strip district, downtown, cmu, pitt, ...) or explicit lat/lng. To revert:
+  `clear_home`.
+- On the FIRST turn of a NEW session (conversation_history is empty AND
+  raw_items is empty), you MAY call `get_daily_promos(topk_per_store=3)`
+  once before `reply` to weave 1–2 top deals into a warm greeting. Only
+  surface promos that look grocery-relevant to a typical meal; skip
+  novelty/gift items. If the observation has `empty:true`, just greet
+  normally without mentioning promos. Do NOT call this tool on
+  subsequent turns.
+- "any deals?" / "what's on sale?" / "show me promos" →
+  `get_daily_promos` then `reply` with the list, grouped by store.
 - Store preferences: "don't buy chicken at Trader Joe's" ->
   `set_preference` with kind="avoid"; "get pork from Trader Joe's" ->
   `set_preference` with kind="prefer". Use the store_id (not the

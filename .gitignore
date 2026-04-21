@@ -32,3 +32,4 @@ Thumbs.db
 
 # Runtime cache
 # data/price_cache/
+data/geocode_cache.json

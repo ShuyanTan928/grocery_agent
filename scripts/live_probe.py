@@ -277,12 +277,12 @@ SCENARIOS: list[Scenario] = [
         ],
     ),
     Scenario(
-        name="set-home-unknown-street-asks-clarification",
-        purpose="Raw street address like '419 Melwood Ave' can't be "
-                "geocoded in mock mode → LLM must ask for a neighborhood/"
-                "landmark or coords, NOT silently accept.",
+        name="set-home-unresolvable-address-asks-clarification",
+        purpose="When geocode cannot resolve a nonsense address (no ORS hit, "
+                "empty cache, or USE_MOCK_GEOCODE), LLM must ask for a "
+                "landmark or coords — home must stay unset.",
         turns=[
-            Turn("my home is at 419 Melwood Ave",
+            Turn("my home is at zzzinvalidtokennonexistentaddress12345",
                  expect_state={"home_label": None}),
         ],
     ),

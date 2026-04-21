@@ -57,6 +57,7 @@ from tools.recommender import recommend_for_query
 from tools.route_planner import plan_route
 from tools.errand_runner import generate_errand_quote
 from tools.geocode import geocode
+from tools.promos import get_daily_promos
 
 
 # ────────────────────────── signals ──────────────────────────────────
@@ -411,9 +412,9 @@ def tool_add_destination(state: AgentState, args: dict) -> dict:
             return {
                 "ok": False,
                 "error": (
-                    f"couldn't geocode '{query}'. Either use a more common "
-                    f"Pittsburgh landmark / neighborhood name, or pass "
-                    f"explicit lat/lng coordinates."
+                    f"couldn't geocode '{query}'. Try a Pittsburgh landmark, "
+                    f"set ORS_API_KEY for street addresses (unset "
+                    f"USE_MOCK_GEOCODE), or pass lat/lng."
                 ),
                 "hint_landmarks": [
                     "cmu", "pitt", "downtown", "oakland", "shadyside",
@@ -511,9 +512,9 @@ def tool_set_home(state: AgentState, args: dict) -> dict:
             return {
                 "ok": False,
                 "error": (
-                    f"couldn't geocode '{query}'. Use a common Pittsburgh "
-                    f"neighborhood or landmark name, or pass explicit "
-                    f"lat/lng coordinates."
+                    f"couldn't geocode '{query}'. Try a Pittsburgh landmark, "
+                    f"set ORS_API_KEY for street addresses (unset "
+                    f"USE_MOCK_GEOCODE), or pass lat/lng."
                 ),
                 "hint_landmarks": [
                     "oakland", "shadyside", "squirrel hill", "east liberty",
@@ -892,6 +893,37 @@ def tool_justify_pick(state: AgentState, args: dict) -> dict:
     return {"hits": hits[:5], "target": target}
 
 
+# ---------- promos (read-only) ----------
+
+def tool_get_daily_promos(state: AgentState, args: dict) -> dict:
+    """Return today's cached promo digest. Read-only."""
+    topk = args.get("topk_per_store", 5)
+    try:
+        topk = int(topk)
+    except (TypeError, ValueError):
+        topk = 5
+    topk = max(1, min(20, topk))
+
+    stores_arg = args.get("stores")
+    stores: list[str] | None = None
+    if isinstance(stores_arg, list):
+        stores = [str(s) for s in stores_arg if isinstance(s, (str, int))]
+        if not stores:
+            stores = None
+
+    min_pct = args.get("min_discount_pct")
+    try:
+        min_pct = float(min_pct) if min_pct is not None else None
+    except (TypeError, ValueError):
+        min_pct = None
+
+    return get_daily_promos(
+        topk_per_store=topk,
+        stores=stores,
+        min_discount_pct=min_pct,
+    )
+
+
 # ---------- terminator ----------
 
 def tool_reply(state: AgentState, args: dict) -> dict:
@@ -978,7 +1010,8 @@ TOOLS: dict[str, dict] = {
             "lat/lng are omitted the label/address is geocoded via a "
             "curated Pittsburgh landmark dict (CMU, Pitt, Downtown, "
             "Squirrel Hill, Shadyside, East Liberty, Strip District, "
-            "Airport, etc.) and an ORS fallback in live mode. On unknown "
+            "Airport, etc.), then ORS when ORS_API_KEY is set (even if "
+            "USE_MOCK_DATA is true for products). On unknown "
             "places returns {ok:false, error:...} — ask the user for an "
             "address or explicit coords. Destinations are mandatory stops "
             "on the next optimize_and_route (or pick_option) call; they "
@@ -1010,11 +1043,10 @@ TOOLS: dict[str, dict] = {
         "description": (
             "Set the user's home address — the route anchor plan_route "
             "starts and ends at, and the H marker on the web map. Accepts "
-            "a free-form `query` (routed through the same Pittsburgh "
-            "landmark dict + ORS fallback as add_destination) OR an "
-            "explicit `lat`+`lng` pair. In mock / offline mode a street "
-            "address like '419 Melwood Ave' will usually NOT resolve — "
-            "prefer a neighborhood or landmark name (oakland, shadyside, "
+            "a free-form `query` (same landmark dict + ORS + disk cache "
+            "as add_destination) OR an explicit `lat`+`lng` pair. Street "
+            "addresses need ORS_API_KEY (and USE_MOCK_GEOCODE unset); "
+            "otherwise prefer a neighborhood/landmark (oakland, shadyside, "
             "squirrel hill, east liberty, strip district, downtown, cmu, "
             "pitt, ...) or pass lat/lng explicitly. On failure returns "
             "{ok:false, error:...} — ask the user to rephrase. On success "
@@ -1124,6 +1156,26 @@ TOOLS: dict[str, dict] = {
             "raw_items source that produced it. Read-only."
         ),
         "args": {"target": "str"},
+    },
+    # promos
+    "get_daily_promos": {
+        "fn": tool_get_daily_promos,
+        "description": (
+            "Read today's cached promo digest built from data/promos.json "
+            "(refreshed by scripts/refresh_promos.py). Returns "
+            "{generated_at, total, per_store:{<store_id>:[{item_name, "
+            "sale_price, reg_price, discount_pct, reason, url}]}, empty}. "
+            "Use this on the FIRST turn of a fresh session (empty "
+            "conversation_history AND empty raw_items) to surface top deals "
+            "in your greeting, or when the user asks 'any deals?' / "
+            "'what's on sale?'. If empty:true, just greet normally without "
+            "mentioning promos."
+        ),
+        "args": {
+            "topk_per_store": "int (default 5, max 20)",
+            "stores": "list[str] (optional; restrict to specific store_ids)",
+            "min_discount_pct": "float (optional; drop rows below this %)",
+        },
     },
     # terminator
     "reply": {

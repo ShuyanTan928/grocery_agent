@@ -10,7 +10,7 @@
 #
 # Public surface:
 #   recommend_for_query(query, *, topk=3, preferences=None, store_ids=None,
-#                       max_candidates=40) -> dict
+#                       max_candidates=40, extra_constraints=None) -> dict
 #       returns: {"query", "topk", "candidates", "picks", "summary",
 #                 "timings": {"search_ms", "llm_ms"}, "raw_llm": str}
 #
@@ -179,15 +179,22 @@ RECOMMEND_SYSTEM = (
     "(Trader Joe's, Giant Eagle, Target, Aldi). Pick the top K best "
     "buys for what the user most likely wants. Reward genuine relevance "
     "to the query (e.g. 'pork' -> real pork meat, NOT pork & beans, "
-    "pork rinds, or pork-flavored sauce). Within relevant items, prefer "
-    "lower price-per-unit, larger pack value, and reputable in-house "
-    "brands — unless the user states a preference that overrides this. "
+    "pork rinds, or pork-flavored sauce). "
+    "CRITICAL: judge by the full PRODUCT NAME (what the item is), not "
+    "because the BRAND name happens to contain a query substring "
+    "(e.g. never pick 'Milk-Bone' for query 'milk'). "
+    "Prefer the literal grocery category the shopper asked for over "
+    "processed derivatives (e.g. milk -> beverage milk, not milk "
+    "chocolate or unrelated milk-flavored snacks). "
+    "Within genuinely relevant items, prefer lower price-per-unit, "
+    "larger pack value, and reputable in-house brands — unless the user "
+    "states a preference that overrides this. "
     "Return STRICT JSON only — no prose, no markdown."
 )
 
 RECOMMEND_USER_TEMPLATE = """User query: "{query}"
-{preference_block}
-Candidates (already filtered to ones that mention the query word and have a price; relevance-sorted then cheapest first):
+{preference_block}{extra_constraints_block}
+Candidates (substring-matched from cache then relevance-ranked; some rows may still be poor matches — discard them):
 {candidate_block}
 
 Return strict JSON of shape:
@@ -207,15 +214,85 @@ Rules:
 - Use ONLY ids from the candidate list. Do not invent new items.
 - If fewer than {topk} candidates are genuinely relevant, return fewer.
 - Prefer relevance over absolute cheapness (a $1 can of pork & beans is NOT a good answer to "pork").
+- Do NOT pick an item just because the brand or fine print contains the query word; the product itself must be what was asked for.
 - Honor the user preferences above if present."""
 
 
-def _build_user_prompt(query: str, cands: list[dict], topk: int,
-                       preferences: list[str] | None) -> str:
+def line_item_pick_hints(line_item: str) -> str:
+    """Extra prompt lines for USE_LLM_MAIN_OPTIMIZER / main-flow picks.
+
+    Tied to the *original* shopping-line text (may include qty/units).
+    Returns a short bullet block or empty string.
+    """
+    text = (line_item or "").strip()
+    if not text:
+        return ""
+
+    hints: list[str] = []
+
+    if re.search(r"\bmilk\b", text, re.I) and not re.search(
+        r"\bmilk\s+chocolate\b", text, re.I
+    ):
+        hints.append(
+            "This line is about **milk** as a beverage or plain cooking liquid: "
+            "choose cow's milk (whole / 2% / skim / lactose-free) or, only if "
+            "the line explicitly names it, a plant milk (almond, oat, soy, …). "
+            "Do NOT choose: milk chocolate, candy/snacks, cereal where milk is "
+            "not the product, sweetened condensed or evaporated milk unless "
+            "the shopper clearly asked for canned cooking milk, protein or "
+            "meal-replacement shakes unless they asked for that, coffee "
+            "creamers marketed as flavorings, or pet treats (e.g. brands "
+            "containing the word milk)."
+        )
+
+    if re.search(r"\beggs?\b", text, re.I):
+        hints.append(
+            "This line is about **eggs** for cooking (shell eggs or liquid egg). "
+            "Do NOT choose: candy or novelty \"eggs\", egg-shaped chocolate, "
+            "marshmallow eggs, dye kits alone, or frozen meals where egg is "
+            "only a minor ingredient unless the product is clearly eggs."
+        )
+
+    if re.search(r"\bbutter\b", text, re.I) and not re.search(
+        r"\b(peanut|almond|apple|cookie)\s+butter\b", text, re.I
+    ):
+        hints.append(
+            "This line is about dairy **butter** (sticks/tubs for cooking). "
+            "Do NOT substitute peanut butter, almond butter, or \"butter\" "
+            "in a candy/spread name unless the shopper asked for that spread."
+        )
+
+    if re.search(r"\bcheese\b", text, re.I) and not re.search(
+        r"\b(cream|mac|macaroni|string)\b", text, re.I
+    ):
+        hints.append(
+            "This line is about **cheese** as cheese (blocks, shreds, slices). "
+            "Do NOT pick mac & cheese dinners, cheese-flavored crackers, or "
+            "cream-cheese-based desserts unless the query clearly asks for "
+            "those products."
+        )
+
+    if not hints:
+        return ""
+
+    body = "\n".join(f"- {h}" for h in hints)
+    return f"\nLine-item constraints (must follow):\n{body}\n"
+
+
+def _build_user_prompt(
+    query: str,
+    cands: list[dict],
+    topk: int,
+    preferences: list[str] | None,
+    extra_constraints: str | None,
+) -> str:
     pref_block = _expand_preferences(preferences)
+    extra = (extra_constraints or "").strip()
+    extra_block = ("\n" + extra + "\n") if extra else ""
     return RECOMMEND_USER_TEMPLATE.format(
         query=query,
         preference_block=("\n" + pref_block if pref_block else ""),
+        extra_constraints_block=extra_block,
         candidate_block=render_candidate_block(cands),
         topk=topk,
     )
@@ -287,8 +364,12 @@ def recommend_for_query(
     preferences: list[str] | None = None,
     store_ids: Iterable[str] | None = None,
     max_candidates: int = 40,
+    extra_constraints: str | None = None,
 ) -> dict:
     """Recommend top-K real products for `query` from cached store data.
+
+    ``extra_constraints`` is optional prose (e.g. from ``line_item_pick_hints``)
+    inserted into the user prompt for main-flow optimizer picks.
 
     Returns a dict suitable for both pretty-print and structured use:
 
@@ -322,7 +403,9 @@ def recommend_for_query(
             "raw_llm": "",
         }
 
-    user_prompt = _build_user_prompt(query, cands, topk, preferences)
+    user_prompt = _build_user_prompt(
+        query, cands, topk, preferences, extra_constraints,
+    )
     t1 = time.perf_counter()
     raw = _call_llm(RECOMMEND_SYSTEM, user_prompt)
     llm_ms = (time.perf_counter() - t1) * 1000

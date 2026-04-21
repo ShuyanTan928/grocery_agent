@@ -38,14 +38,20 @@
       display: grid;
       grid-template-columns: minmax(340px, 420px) 1fr;
       height: 100vh;
+      min-height: 0; /* grid children may shrink → inner scroll works */
     }
     /* ── Chat (left) ── */
     .chat {
       display: flex; flex-direction: column;
+      min-height: 0;
+      height: 100%;
+      max-height: 100%;
+      overflow: hidden; /* keep scroll inside .chat-log only */
       background: var(--panel);
       border-right: 1px solid var(--border);
     }
     .chat-header {
+      flex-shrink: 0;
       padding: 14px 18px;
       border-bottom: 1px solid var(--border);
       display: flex; justify-content: space-between; align-items: center;
@@ -58,7 +64,13 @@
     }
     .chat-header button:hover { background: #e5e7eb; }
     .chat-log {
-      flex: 1; overflow-y: auto; padding: 16px;
+      flex: 1 1 auto;
+      min-height: 0; /* required so flex item can shrink and overflow-y applies */
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding: 16px;
       display: flex; flex-direction: column; gap: 10px;
     }
     .msg {
@@ -70,7 +82,24 @@
     .msg.agent { align-self: flex-start; background: #f3f4f6; color: var(--agent); }
     .msg.system { align-self: center; color: var(--ink-soft); font-size: 12px; font-style: italic; }
     .msg.error { align-self: center; color: var(--danger); font-size: 12px; }
+    .greeting-promos {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #d1d5db;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .greeting-promos .gp-title {
+      font-weight: 600; color: var(--agent); margin-bottom: 4px;
+    }
+    .greeting-promos ul { margin: 0; padding-left: 18px; }
+    .greeting-promos li { margin: 2px 0; }
+    .greeting-promos .gp-price { color: var(--primary); font-weight: 600; }
+    .greeting-promos .gp-reg { color: var(--ink-soft); text-decoration: line-through; margin-left: 4px; font-size: 12px; }
+    .greeting-promos .gp-pct { color: #059669; font-weight: 600; margin-left: 4px; }
+    .greeting-promos .gp-store { color: var(--ink-soft); font-size: 11px; margin-left: 4px; }
     .chat-input {
+      flex-shrink: 0;
       display: flex; gap: 8px; padding: 12px 14px;
       border-top: 1px solid var(--border); background: var(--panel);
     }
@@ -88,6 +117,7 @@
     .chat-input button:disabled { background: #9ca3af; cursor: not-allowed; }
     .typing { color: var(--ink-soft); font-size: 12px; padding-left: 4px; }
     .hint-chips {
+      flex-shrink: 0;
       display: flex; flex-wrap: wrap; gap: 6px;
       padding: 0 14px 10px 14px;
       border-top: 1px solid var(--border); padding-top: 10px;
@@ -103,7 +133,9 @@
     .pane {
       display: grid;
       grid-template-rows: auto auto 1fr;
-      height: 100vh; overflow: hidden;
+      height: 100vh;
+      min-height: 0;
+      overflow: hidden;
     }
     .pane > section {
       background: var(--panel);
@@ -187,8 +219,21 @@
     .map-actions a:hover { text-decoration: underline; }
 
     @media (max-width: 800px) {
-      .app { grid-template-columns: 1fr; grid-template-rows: 55vh 45vh; }
-      .chat { border-right: none; border-bottom: 1px solid var(--border); }
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 55vh) minmax(0, 45vh);
+        height: 100vh;
+        min-height: 0;
+      }
+      .chat {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .pane {
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+      }
     }
   </style>
 </head>
@@ -205,9 +250,12 @@
       </div>
 
       <div class="chat-log" id="chat-log">
-        <div class="msg agent">
-          Hi — tell me what you need. Try <em>"1 gallon milk and a dozen eggs"</em>,
-          <em>"recipe for carbonara"</em>, or <em>"add CMU as a stop on the way home"</em>.
+        <div class="msg agent" id="greeting-msg">
+          <div class="greeting-body">
+            Hi — tell me what you need. Try <em>"1 gallon milk and a dozen eggs"</em>,
+            <em>"recipe for carbonara"</em>, or <em>"add CMU as a stop on the way home"</em>.
+          </div>
+          <div class="greeting-promos" id="greeting-promos" hidden></div>
         </div>
       </div>
 
@@ -562,15 +610,74 @@
       if (!confirm("Reset the conversation? This clears the list and plan.")) return;
       await apiReset();
       chatLog.innerHTML = "";
+      renderGreeting();
       addMsg("system", "New conversation started.");
       renderState({ raw_items: [], shopping_plan: null, route: null, destinations: [] });
+      loadGreetingPromos();
     });
     document.querySelectorAll(".chip[data-prompt]").forEach(btn => {
       btn.addEventListener("click", () => send(btn.dataset.prompt));
     });
 
+    // ─── Greeting + promos ────────────────────────────────────
+    const GREETING_HTML = `
+      <div class="greeting-body">
+        Hi — tell me what you need. Try <em>"1 gallon milk and a dozen eggs"</em>,
+        <em>"recipe for carbonara"</em>, or <em>"add CMU as a stop on the way home"</em>.
+      </div>
+      <div class="greeting-promos" id="greeting-promos" hidden></div>
+    `;
+
+    function renderGreeting() {
+      const div = document.createElement("div");
+      div.className = "msg agent";
+      div.id = "greeting-msg";
+      div.innerHTML = GREETING_HTML;
+      chatLog.appendChild(div);
+    }
+
+    function money(x) {
+      if (x == null || isNaN(x)) return "";
+      return `$${Number(x).toFixed(2)}`;
+    }
+
+    function storeLabel(id) {
+      if (!id) return "";
+      return id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    async function loadGreetingPromos() {
+      try {
+        const res = await fetch("/api/promos?limit=3");
+        if (!res.ok) return;
+        const data = await res.json();
+        const host = document.getElementById("greeting-promos");
+        if (!host) return;
+        if (!data || data.empty || !(data.items || []).length) return;
+        const lis = data.items.map(r => {
+          const reg = r.reg_price && r.reg_price > r.sale_price
+            ? `<span class="gp-reg">${money(r.reg_price)}</span>` : "";
+          const pct = r.discount_pct
+            ? `<span class="gp-pct">${r.discount_pct}% off</span>` : "";
+          const store = r.store_id
+            ? `<span class="gp-store">@ ${storeLabel(r.store_id)}</span>` : "";
+          const name = (r.item_name || "").replace(/</g, "&lt;");
+          const nameEl = r.url
+            ? `<a href="${r.url}" target="_blank" rel="noopener">${name}</a>`
+            : name;
+          return `<li>${nameEl} — <span class="gp-price">${money(r.sale_price)}</span>${reg}${pct}${store}</li>`;
+        }).join("");
+        host.innerHTML = `
+          <div class="gp-title">Today's top deals</div>
+          <ul>${lis}</ul>
+        `;
+        host.hidden = false;
+      } catch (_) { /* silent; greeting still works */ }
+    }
+
     // ─── Boot ──────────────────────────────────────────────────
     apiState().then(({ state }) => renderState(state)).catch(() => {});
+    loadGreetingPromos();
   })();
   </script>
 </body>

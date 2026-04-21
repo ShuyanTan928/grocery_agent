@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field  # noqa: E402
 from agent.loop import chat  # noqa: E402
 from agent.state import AgentState  # noqa: E402
 from config.settings import HOME_ADDRESS, HOME_LAT, HOME_LNG  # noqa: E402
+from tools.promos import get_greeting_promos  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -262,6 +263,18 @@ def api_reset(req: ResetRequest) -> dict:
     SESSIONS.reset(req.session_id)
     return {"ok": True, "session_id": req.session_id,
             "state": build_web_state(AgentState())}
+
+
+@app.get("/api/promos")
+def api_promos(limit: int = 3, min_discount_pct: float = 15.0) -> dict:
+    """Today's cached top-deal digest for the opening greeting.
+
+    Reads ``data/promos.json`` (produced by
+    ``scripts/refresh_promos.py``). Safe no-op when the cache is missing
+    — the frontend will just render its static greeting.
+    """
+    limit = max(1, min(10, int(limit)))
+    return get_greeting_promos(limit=limit, min_discount_pct=min_discount_pct)
 
 
 @app.get("/api/new-session")

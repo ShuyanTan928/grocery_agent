@@ -315,8 +315,9 @@ class TestSetHome:
         assert s.home["source"] == "user_coords"
         assert s.home["address"] == "419 Melwood Ave"
 
-    def test_unknown_query_without_coords_returns_error(self):
-        # In mock mode '419 Melwood Ave' isn't a landmark and ORS is disabled.
+    def test_unknown_query_without_coords_returns_error(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("tools.geocode.USE_MOCK_GEOCODE", True)
+        monkeypatch.setattr("tools.geocode.GEOCODE_CACHE_OVERRIDE", tmp_path / "gc.json")
         s = AgentState()
         obs = run_tool(s, "set_home", {"query": "419 Melwood Ave"})
         assert obs["ok"] is False

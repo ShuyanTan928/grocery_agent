@@ -1,16 +1,14 @@
 """Unit tests for the thin landmark + ORS geocoder (tools/geocode.py).
 
-We only test the offline landmark path here — ORS fallback needs the
-network and a key so it's guarded by USE_MOCK_DATA in the helper itself.
+ORS calls are monkeypatched; disk cache uses tmp_path overrides.
 """
 from __future__ import annotations
-
-import pytest
 
 from tools.geocode import (
     PITTSBURGH_LANDMARKS,
     _match_landmark,
     _normalize,
+    build_ors_search_text,
     geocode,
 )
 
@@ -49,10 +47,82 @@ class TestGeocode:
             assert hit["source"] == "landmark"
             assert hit["label"] == phrase
 
-    def test_unknown_place_is_none_in_mock_mode(self, monkeypatch):
-        monkeypatch.setattr("tools.geocode.USE_MOCK_DATA", True)
+    def test_bakery_living_landmark_coords(self):
+        for phrase in ["bakery living", "6480 living pi", "6480 Living Pl"]:
+            hit = geocode(phrase)
+            assert hit is not None
+            assert hit["source"] == "landmark"
+            assert abs(hit["lat"] - 40.45601) < 1e-5
+            assert abs(hit["lng"] - (-79.91707)) < 1e-5
+
+    def test_unknown_place_is_none_without_ors_or_cache(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("tools.geocode.USE_MOCK_GEOCODE", True)
+        monkeypatch.setattr("tools.geocode.GEOCODE_CACHE_OVERRIDE", tmp_path / "gc.json")
         assert geocode("some obscure place 12345") is None
+
+    def test_unknown_place_is_none_when_ors_key_missing(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("tools.geocode.ORS_API_KEY", "")
+        monkeypatch.setattr("tools.geocode.USE_MOCK_GEOCODE", False)
+        monkeypatch.setattr("tools.geocode.GEOCODE_CACHE_OVERRIDE", tmp_path / "gc.json")
+        assert geocode("some obscure place 12345") is None
+
+    def test_ors_path_works_independent_of_product_mock_flag(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setattr("tools.geocode.GEOCODE_CACHE_OVERRIDE", tmp_path / "gc.json")
+        monkeypatch.setattr("tools.geocode.ORS_API_KEY", "test-key")
+        monkeypatch.setattr(
+            "tools.geocode._ors_geocode",
+            lambda q: {
+                "lat": 40.5,
+                "lng": -80.0,
+                "address": "Resolved St, Pittsburgh",
+                "source": "ors",
+            },
+        )
+        hit = geocode("999 nowhere lane")
+        assert hit is not None
+        assert hit["lat"] == 40.5
+        assert hit["source"] == "ors"
+
+    def test_second_call_reads_disk_cache_without_ors(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setattr("tools.geocode.GEOCODE_CACHE_OVERRIDE", tmp_path / "gc.json")
+        monkeypatch.setattr("tools.geocode.ORS_API_KEY", "test-key")
+        calls: list[str] = []
+
+        def fake_ors(q: str):
+            calls.append(q)
+            return {
+                "lat": 40.1,
+                "lng": -79.9,
+                "address": "First Hit",
+                "source": "ors",
+            }
+
+        monkeypatch.setattr("tools.geocode._ors_geocode", fake_ors)
+        first = geocode("unique cache probe street")
+        assert first["source"] == "ors"
+        assert len(calls) == 1
+
+        monkeypatch.setattr("tools.geocode.ORS_API_KEY", "")
+        second = geocode("unique cache probe street")
+        assert second["lat"] == 40.1
+        assert second["source"] == "ors"
 
     def test_blank_input_is_none(self):
         assert geocode("") is None
         assert geocode("   ") is None
+
+
+class TestBuildOrsSearchText:
+    def test_appends_pittsburgh_when_no_context(self):
+        assert "Pittsburgh" in build_ors_search_text("419 melwood ave")
+
+    def test_no_double_append_when_pa_zip_present(self):
+        t = build_ors_search_text("4800 Forbes Ave, PA 15213")
+        assert t == "4800 Forbes Ave, PA 15213"
+
+    def test_no_append_when_pittsburgh_in_query(self):
+        assert build_ors_search_text("CMU Pittsburgh") == "CMU Pittsburgh"
